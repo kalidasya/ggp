@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/rand"
 	"reflect"
+	"strings"
 )
 
 // todo use slices when go is 1.20
@@ -36,26 +37,112 @@ func Max(a int, b int) int {
 }
 
 type PrimitiveTree struct {
-	stack []interface{}
+	stack []Node // either primitive or terminal
+}
+
+type NodeString struct {
+	node Node
+	str  []string
+}
+
+func (pt *PrimitiveTree) String() string {
+	s := ""
+	var stack []NodeString
+	for _, node := range pt.stack {
+		stack = append(stack, NodeString{node, []string{}})
+		for len(stack[len(stack)-1].str) == stack[len(stack)-1].node.Arity() {
+			var n NodeString
+			stack, n = Pop(stack)
+			s = n.node.Str(n.str)
+			if len(stack) == 0 {
+				break
+			}
+			stack[len(stack)-1].str = append(stack[len(stack)-1].str, s)
+		}
+	}
+	return s
 }
 
 func (pt *PrimitiveTree) Root() interface{} {
 	return pt.stack[0]
 }
 
+func Append(s []int, times int, value int) []int {
+	for i := 0; i < times; i++ {
+		s = append(s, value)
+	}
+	return s
+}
+
 func (pt *PrimitiveTree) Height() int {
 	stack := []int{0}
 	max_depth := 0
-	for _, elem := range pt.stack.stack {
-		depth, _ := stack.Pop()
+	var depth int
+	for _, elem := range pt.stack {
+		stack, depth = Pop(stack)
 		max_depth = Max(max_depth, depth)
-		stack = append(stack)
-		stack.extend([depth + 1]*elem.Arity)
+		stack = Append(stack, elem.Arity(), depth+1)
 	}
 	return max_depth
 }
 
+func (pt *PrimitiveTree) SearchSubtree(begin int) (int, int) {
+	end := begin + 1
+	total := pt.stack[begin].Arity()
+	for total > 0 {
+		total += pt.stack[end].Arity() - 1
+		end++
+	}
+	return begin, end
+}
+
+func NewPrimitiveTree(stack []Node) *PrimitiveTree {
+	return &PrimitiveTree{
+		stack: stack,
+	}
+}
+
+type Node interface {
+	Arity() int
+	Name() string
+	Eval() (interface{}, error)
+	Str([]string) string
+}
+
+type Terminal struct {
+	name    string
+	retType reflect.Kind
+	value   interface{}
+}
+
+func (t *Terminal) Arity() int {
+	return 0
+}
+
+func (t *Terminal) Name() string {
+	return t.name
+}
+
+func (t *Terminal) Eval() (interface{}, error) {
+	return t.value, nil
+}
+
+func (t *Terminal) Str(_ []string) string {
+	return fmt.Sprintf("%v", t.value)
+}
+
+var _ Node = new(Terminal)
+
+func NewTerminal(name string, retType reflect.Kind, value interface{}) *Terminal {
+	return &Terminal{
+		name:    name,
+		retType: retType,
+		value:   value,
+	}
+}
+
 type Primitive struct {
+	name     string
 	function PrimitiveFunc
 	arity    int
 	argTypes []reflect.Kind
@@ -63,32 +150,12 @@ type Primitive struct {
 	args     []interface{}
 }
 
-type Terminal struct {
-	Primitive
-	value interface{}
+func (p *Primitive) Arity() int {
+	return p.arity
 }
 
-func NewTerminal(retType reflect.Kind, value interface{}) *Terminal {
-	return &Terminal{
-		Primitive: Primitive{
-			arity:   0,
-			retType: retType,
-		},
-		value: value,
-	}
-}
-
-func (t *Terminal) Eval() interface{} {
-	return t.value
-}
-
-func NewPrimitive(f PrimitiveFunc, argTypes []reflect.Kind, retType reflect.Kind) *Primitive {
-	return &Primitive{
-		function: f,
-		arity:    len(argTypes),
-		argTypes: argTypes,
-		retType:  retType,
-	}
+func (p *Primitive) Name() string {
+	return p.name
 }
 
 func (p *Primitive) Equals(o Primitive) bool {
@@ -106,20 +173,36 @@ func (p *Primitive) Equals(o Primitive) bool {
 	return true
 }
 
-func (p *Primitive) Eval(args ...interface{}) (interface{}, error) {
-	if len(p.argTypes) > len(args) {
+func (p *Primitive) Eval() (interface{}, error) {
+	if len(p.argTypes) > len(p.args) {
 		return nil, errors.New("not enough arguments")
 	}
-	if len(p.argTypes) < len(args) {
+	if len(p.argTypes) < len(p.args) {
 		return nil, errors.New("too many arguments")
 	}
-	for i, arg := range args {
+	for i, arg := range p.args {
 		if reflect.TypeOf(arg).Kind() != p.argTypes[i] {
 			return nil, errors.New(fmt.Sprintf("invalid type for %dth argument", i))
 		}
 
 	}
-	return p.function(args...), nil
+	return p.function(p.args...), nil
+}
+
+func (p *Primitive) Str(args []string) string {
+	return fmt.Sprintf("%s(%s)", p.Name(), strings.Join(args, ", "))
+}
+
+var _ Node = new(Primitive)
+
+func NewPrimitive(name string, f PrimitiveFunc, argTypes []reflect.Kind, retType reflect.Kind) *Primitive {
+	return &Primitive{
+		name:     name,
+		function: f,
+		arity:    len(argTypes),
+		argTypes: argTypes,
+		retType:  retType,
+	}
 }
 
 type PrimitiveSet struct {
@@ -128,16 +211,6 @@ type PrimitiveSet struct {
 	InTypes    []reflect.Kind
 	RetType    reflect.Kind
 	Arity      int
-}
-
-func NewPrimitiveSet(inTypes []reflect.Kind, retType reflect.Kind) *PrimitiveSet {
-	return &PrimitiveSet{
-		Primitives: make(map[reflect.Kind][]*Primitive),
-		Terminals:  make(map[reflect.Kind][]*Terminal),
-		RetType:    retType,
-		InTypes:    inTypes,
-		Arity:      len(inTypes),
-	}
 }
 
 func (ps *PrimitiveSet) AddPrimitive(p *Primitive) {
@@ -156,47 +229,43 @@ func (ps *PrimitiveSet) TerminalRatio() float32 {
 	return float32(len(ps.Terminals)) / float32(len(ps.Terminals)+len(ps.Primitives))
 }
 
+func NewPrimitiveSet(inTypes []reflect.Kind, retType reflect.Kind) *PrimitiveSet {
+	return &PrimitiveSet{
+		Primitives: make(map[reflect.Kind][]*Primitive),
+		Terminals:  make(map[reflect.Kind][]*Terminal),
+		RetType:    retType,
+		InTypes:    inTypes,
+		Arity:      len(inTypes),
+	}
+}
+
 func Pop[T any](s []T) ([]T, T) {
-	item, stack := s[len(s)-1], s[:len(s)-1]
-	s = stack
-	return stack, item
+	return s[:len(s)-1], s[len(s)-1]
 }
 
 type StackItem struct {
 	i int
-	t interface{}
+	t reflect.Kind
 }
 
-type Stack struct {
-	stack []StackItem
-}
-
-func (s *Stack) Pop() (int, interface{}) {
-	item, stack := s.stack[len(s.stack)-1], s.stack[:len(s.stack)-1]
-	s.stack = stack
-	return item.i, item.t
-}
-
-func GenerateTree(ps *PrimitiveSet, min int, max int, condition GenCondition) []interface{} {
-	var expr []interface{}
+func GenerateTree(ps *PrimitiveSet, min int, max int, condition GenCondition) *PrimitiveTree {
+	var expr []Node
 	height := rand.Intn(max-min) + min
 
-	stack := Stack{
-		stack: []StackItem{
-			{i: 0, t: ps.RetType},
-		},
+	stack := []StackItem{
+		{i: 0, t: ps.RetType},
 	}
-	for len(stack.stack) != 0 {
-		depth, type_ := stack.Pop()
-		realType := type_.(reflect.Kind)
-		fmt.Printf("Condition at %d is %t\n", len(stack.stack)+1, condition(height, depth, min, max, ps))
+
+	for len(stack) != 0 {
+		var item StackItem
+		stack, item = Pop(stack)
+		depth := item.i
+		realType := item.t
 		if condition(height, depth, min, max, ps) {
 			term := ps.Terminals[realType][rand.Intn(len(ps.Terminals[realType]))]
 			if term == nil {
 				panic("No terminal with type available")
 			}
-			//if type(term) is MetaEphemeral:
-			//    term = term()
 			expr = append(expr, term)
 		} else {
 			prim := ps.Primitives[realType][rand.Intn(len(ps.Primitives[realType]))]
@@ -206,11 +275,11 @@ func GenerateTree(ps *PrimitiveSet, min int, max int, condition GenCondition) []
 			expr = append(expr, prim)
 			for i := len(prim.argTypes) - 1; i >= 0; i-- {
 				arg := prim.argTypes[i]
-				stack.stack = append(stack.stack, StackItem{i: depth + 1, t: arg})
+				stack = append(stack, StackItem{i: depth + 1, t: arg})
 			}
 		}
 	}
-	return expr
+	return NewPrimitiveTree(expr)
 }
 
 func main() {
@@ -223,15 +292,16 @@ func main() {
 		return ret
 	}
 	ftwo = func(a ...interface{}) interface{} {
-		ret := 0
+		ret := 1
 		for _, n := range a {
-			ret -= n.(int)
+			ret *= n.(int)
 		}
 		return ret
 	}
-	p := NewPrimitive(fone, []reflect.Kind{reflect.Int, reflect.Int}, reflect.Int)
-	p2 := NewPrimitive(ftwo, []reflect.Kind{reflect.Int, reflect.Int}, reflect.Int)
-	t := NewTerminal(reflect.Int, 99)
+	p := NewPrimitive("fone", fone, []reflect.Kind{reflect.Int, reflect.Int}, reflect.Int)
+	p2 := NewPrimitive("ftwo", ftwo, []reflect.Kind{reflect.Int, reflect.Int}, reflect.Int)
+	t := NewTerminal("a", reflect.Int, 99)
+	t2 := NewTerminal("b", reflect.Int, 12)
 	// fmt.Println(p.Eval(8, 7))
 	// fmt.Println(p2.Eval(3, 4))
 
@@ -239,7 +309,9 @@ func main() {
 	ps.AddPrimitive(p)
 	ps.AddPrimitive(p2)
 	ps.AddTerminal(t)
-	fmt.Printf("Terminals: %+v Primitives: %+v\n", ps.Terminals, ps.Primitives)
-	ret := GenerateTree(ps, 2, 3, GenFull)
-	fmt.Printf("tree: %+v\n", ret[1])
+	ps.AddTerminal(t2)
+	ret := GenerateTree(ps, 3, 4, GenFull)
+	fmt.Printf("tree depth: %d\n", ret.Height())
+	fmt.Printf("tree: %s\n", ret)
+	fmt.Println(ftwo(ftwo(ftwo(12, 99), fone(99, 99)), fone(ftwo(12, 99), fone(99, 99))))
 }
