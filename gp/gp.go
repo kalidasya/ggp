@@ -3,9 +3,12 @@ package gp
 import (
 	"errors"
 	"fmt"
+	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 	"math/rand"
 	"reflect"
 	"strings"
+	"time"
 )
 
 type PrimitiveFunc func(...interface{}) interface{}
@@ -53,6 +56,10 @@ func (pt *PrimitiveTree) Root() interface{} {
 	return pt.stack[0]
 }
 
+func (pt *PrimitiveTree) Nodes() []Node {
+	return pt.stack
+}
+
 func (pt *PrimitiveTree) Height() int {
 	stack := []int{0}
 	max_depth := 0
@@ -88,6 +95,7 @@ type Node interface {
 	Name() string
 	Eval() (interface{}, error)
 	Str([]string) string
+	Ret() reflect.Kind
 }
 
 type Terminal struct {
@@ -110,6 +118,10 @@ func (t *Terminal) Eval() (interface{}, error) {
 
 func (t *Terminal) Str(_ []string) string {
 	return fmt.Sprintf("%v", t.value)
+}
+
+func (t *Terminal) Ret() reflect.Kind {
+	return t.retType
 }
 
 var _ Node = new(Terminal)
@@ -174,6 +186,10 @@ func (p *Primitive) Str(args []string) string {
 	return fmt.Sprintf("%s(%s)", p.Name(), strings.Join(args, ", "))
 }
 
+func (p *Primitive) Ret() reflect.Kind {
+	return p.retType
+}
+
 var _ Node = new(Primitive)
 
 func NewPrimitive(name string, f PrimitiveFunc, argTypes []reflect.Kind, retType reflect.Kind) *Primitive {
@@ -227,12 +243,17 @@ type StackItem struct {
 	t reflect.Kind
 }
 
-func GenerateTree(ps *PrimitiveSet, min int, max int, condition GenCondition) *PrimitiveTree {
+func GenerateTree(ps *PrimitiveSet, min int, max int, condition GenCondition, type_ reflect.Kind) *PrimitiveTree {
 	var expr []Node
-	height := rand.Intn(max-min) + min
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	height := r.Intn(max-min) + min
+
+	if type_ == reflect.Invalid {
+		type_ = ps.RetType
+	}
 
 	stack := []StackItem{
-		{i: 0, t: ps.RetType},
+		{i: 0, t: type_},
 	}
 
 	for len(stack) != 0 {
@@ -259,4 +280,58 @@ func GenerateTree(ps *PrimitiveSet, min int, max int, condition GenCondition) *P
 		}
 	}
 	return NewPrimitiveTree(expr)
+}
+
+func CXOnePoint(ind1 *PrimitiveTree, ind2 *PrimitiveTree) {
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	if len(ind1.stack) < 2 || len(ind2.stack) < 2 {
+		return
+	}
+
+	types1 := make(map[reflect.Kind][]int)
+	for i, n := range ind1.stack[1:] {
+		types1[n.Ret()] = append(types1[n.Ret()], i+1)
+	}
+	types2 := make(map[reflect.Kind][]int)
+	for i, n := range ind2.stack[1:] {
+		types2[n.Ret()] = append(types2[n.Ret()], i+1)
+	}
+
+	// todo refactor to set creation and intersection
+	type1Keys := maps.Keys(types1)
+	slices.Sort(type1Keys)
+	slices.Compact(type1Keys)
+
+	type2Keys := maps.Keys(types2)
+	slices.Sort(type2Keys)
+	slices.Compact(type2Keys)
+
+	var commonTypes []reflect.Kind
+	for _, t1 := range type1Keys {
+		for _, t2 := range type2Keys {
+			if t1 == t2 {
+				commonTypes = append(commonTypes, t1)
+			}
+		}
+	}
+	if len(commonTypes) > 0 {
+		type_ := commonTypes[r.Intn(len(commonTypes))]
+
+		index1 := types1[type_][r.Intn(len(types1[type_]))]
+		index2 := types2[type_][r.Intn(len(types2[type_]))]
+
+		slice1Begin, slice1End := ind1.SearchSubtree(index1)
+		slice2Begin, slice2End := ind2.SearchSubtree(index2)
+		ind1.stack = slices.Replace(ind1.stack, slice1Begin, slice1End, ind2.stack[slice2Begin:slice2End]...)
+		ind2.stack = slices.Replace(ind2.stack, slice2Begin, slice2End, ind1.stack[slice1Begin:slice1End]...)
+	}
+}
+
+func MutUniform(ind *PrimitiveTree, expr func(*PrimitiveSet, reflect.Kind) []Node, ps *PrimitiveSet) {
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	index := r.Intn(len(ind.stack))
+	sliceStart, sliceEnd := ind.SearchSubtree(index)
+	type_ := ind.stack[index].Ret()
+	newNodes := expr(ps, type_)
+	slices.Replace(ind.stack, sliceStart, sliceEnd, newNodes...)
 }
