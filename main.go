@@ -33,17 +33,38 @@ func main() {
 	ps.AddTerminal(t2)
 	ret := gp.GenerateTree(ps, 3, 4, gp.GenFull, reflect.Invalid)
 	ret2 := gp.GenerateTree(ps, 3, 4, gp.GenFull, reflect.Invalid)
-	fmt.Printf("tree depth: %d\n", ret.Height())
-	fmt.Printf("new tree: %s\n", ret)
-	fmt.Printf("new tree2: %s\n", ret2)
+	// fmt.Printf("tree depth: %d\n", ret.Height())
+	// fmt.Printf("new tree: %s=%s\n", ret, ret.Compile())
+	// fmt.Printf("new tree2: %s=%s\n", ret2, ret2.Compile())
 	// fmt.Println(ftwo(ftwo(ftwo(12, 99), fone(99, 99)), fone(ftwo(12, 99), fone(99, 99))))
-	gp.CXOnePoint(ret, ret2)
-	fmt.Printf("cx tree2: %s\n", ret2)
-	fmt.Printf("cx tree: %s\n", ret)
-	gp.MutUniform(ret, func(ps *gp.PrimitiveSet, type_ reflect.Kind) []gp.Node {
-		return gp.GenerateTree(ps, 0, 2, gp.GenGrow, type_).Nodes()
-	}, ps)
-	fmt.Printf("mut tree: %s\n", ret)
+	// gp.CXOnePoint(ret, ret2)
+	// fmt.Printf("cx tree2: %s=%s\n", ret2, ret2.Compile())
+	// fmt.Printf("cx tree: %s=%s\n", ret, ret.Compile())
+	count := 100
+	for count > 0 && len(fmt.Sprint(ret)) > 4 {
+		fmt.Println("===========================================")
+		fmt.Print("Before CX:           ")
+		printNodes(ret)
+		gp.CXOnePoint(ret, ret2)
+		fmt.Print("After CX before mut: ")
+		printNodes(ret)
+
+		gp.MutUniform(ret, func(ps *gp.PrimitiveSet, type_ reflect.Kind) []gp.Node {
+			return gp.GenerateTree(ps, 0, 2, gp.GenGrow, type_).Nodes()
+		}, ps)
+		fmt.Printf("mut and CX tree len(%d): %s=%s\n", len(ret.Nodes()), ret, ret.Compile())
+		fmt.Print("After mut:           ")
+		printNodes(ret)
+		count--
+	}
+	fmt.Printf("Reached %d iteration\n", 100-count)
+}
+
+func printNodes(pt *gp.PrimitiveTree) {
+	for _, n := range pt.Nodes() {
+		fmt.Printf("%s ", n.Name())
+	}
+	fmt.Println("")
 }
 
 // func main() {

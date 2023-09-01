@@ -30,26 +30,57 @@ type NodeString struct {
 	str  []string
 }
 
+type NodeInterace struct {
+	node Node
+	args []interface{}
+}
+
 type PrimitiveTree struct {
 	stack []Node // either primitive or terminal
 }
 
+// somehow the last node is not a terminal, something is wrong with the tree growing
+
 func (pt *PrimitiveTree) String() string {
-	s := ""
 	var stack []NodeString
 	for _, node := range pt.stack {
+		// fmt.Printf("!!pt.stack len: %d stack len: %d c: %d\n", len(pt.stack), len(stack), i)
 		stack = append(stack, NodeString{node, []string{}})
+		// fmt.Printf("!!Node: %s %d==%d\n", node.Name(), len(stack[len(stack)-1].str), stack[len(stack)-1].node.Arity())
 		for len(stack[len(stack)-1].str) == stack[len(stack)-1].node.Arity() {
 			var n NodeString
 			stack, n = Pop(stack)
-			s = n.node.Str(n.str)
+			s := n.node.Str(n.str)
+			// fmt.Printf("!!current str: %s\n", s)
 			if len(stack) == 0 {
-				break
+				return s
 			}
 			stack[len(stack)-1].str = append(stack[len(stack)-1].str, s)
 		}
 	}
-	return s
+	return "."
+}
+
+func (pt *PrimitiveTree) Compile() interface{} {
+	var stack []NodeInterace
+	for _, node := range pt.stack {
+		stack = append(stack, NodeInterace{node, []interface{}{}})
+		// fmt.Printf("Node: %s %d==%d\n", node.Name(), len(stack[len(stack)-1].args), stack[len(stack)-1].node.Arity())
+		for len(stack[len(stack)-1].args) == stack[len(stack)-1].node.Arity() {
+			var n NodeInterace
+			stack, n = Pop(stack)
+			// fmt.Printf("last stack %s %v\n", n.node.Name(), n.args)
+			res, err := n.node.Eval(n.args)
+			if err != nil {
+				panic("eval error")
+			}
+			if len(stack) == 0 {
+				return res
+			}
+			stack[len(stack)-1].args = append(stack[len(stack)-1].args, res)
+		}
+	}
+	return nil
 }
 
 func (pt *PrimitiveTree) Root() interface{} {
@@ -93,7 +124,7 @@ func NewPrimitiveTree(stack []Node) *PrimitiveTree {
 type Node interface {
 	Arity() int
 	Name() string
-	Eval() (interface{}, error)
+	Eval([]interface{}) (interface{}, error)
 	Str([]string) string
 	Ret() reflect.Kind
 }
@@ -112,7 +143,7 @@ func (t *Terminal) Name() string {
 	return t.name
 }
 
-func (t *Terminal) Eval() (interface{}, error) {
+func (t *Terminal) Eval(_ []interface{}) (interface{}, error) {
 	return t.value, nil
 }
 
@@ -140,7 +171,6 @@ type Primitive struct {
 	arity    int
 	argTypes []reflect.Kind
 	retType  reflect.Kind
-	args     []interface{}
 }
 
 func (p *Primitive) Arity() int {
@@ -166,20 +196,20 @@ func (p *Primitive) Equals(o Primitive) bool {
 	return true
 }
 
-func (p *Primitive) Eval() (interface{}, error) {
-	if len(p.argTypes) > len(p.args) {
+func (p *Primitive) Eval(args []interface{}) (interface{}, error) {
+	if len(p.argTypes) > len(args) {
 		return nil, errors.New("not enough arguments")
 	}
-	if len(p.argTypes) < len(p.args) {
+	if len(p.argTypes) < len(args) {
 		return nil, errors.New("too many arguments")
 	}
-	for i, arg := range p.args {
+	for i, arg := range args {
 		if reflect.TypeOf(arg).Kind() != p.argTypes[i] {
 			return nil, errors.New(fmt.Sprintf("invalid type for %dth argument", i))
 		}
 
 	}
-	return p.function(p.args...), nil
+	return p.function(args...), nil
 }
 
 func (p *Primitive) Str(args []string) string {
@@ -247,6 +277,7 @@ func GenerateTree(ps *PrimitiveSet, min int, max int, condition GenCondition, ty
 	var expr []Node
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	height := r.Intn(max-min) + min
+	fmt.Printf("Generated height: %d\n", height)
 
 	if type_ == reflect.Invalid {
 		type_ = ps.RetType
@@ -262,20 +293,19 @@ func GenerateTree(ps *PrimitiveSet, min int, max int, condition GenCondition, ty
 		depth := item.i
 		realType := item.t
 		if condition(height, depth, min, max, ps) {
-			term := ps.Terminals[realType][rand.Intn(len(ps.Terminals[realType]))]
+			term := ps.Terminals[realType][r.Intn(len(ps.Terminals[realType]))]
 			if term == nil {
 				panic("No terminal with type available")
 			}
 			expr = append(expr, term)
 		} else {
-			prim := ps.Primitives[realType][rand.Intn(len(ps.Primitives[realType]))]
+			prim := ps.Primitives[realType][r.Intn(len(ps.Primitives[realType]))]
 			if prim == nil {
 				panic("No primitive with type available")
 			}
 			expr = append(expr, prim)
 			for i := len(prim.argTypes) - 1; i >= 0; i-- {
-				arg := prim.argTypes[i]
-				stack = append(stack, StackItem{i: depth + 1, t: arg})
+				stack = append(stack, StackItem{i: depth + 1, t: prim.argTypes[i]})
 			}
 		}
 	}
@@ -333,5 +363,6 @@ func MutUniform(ind *PrimitiveTree, expr func(*PrimitiveSet, reflect.Kind) []Nod
 	sliceStart, sliceEnd := ind.SearchSubtree(index)
 	type_ := ind.stack[index].Ret()
 	newNodes := expr(ps, type_)
+	fmt.Printf("mutation from %d to %d adding: %d nodes\n", sliceStart, sliceEnd, len(newNodes))
 	slices.Replace(ind.stack, sliceStart, sliceEnd, newNodes...)
 }
