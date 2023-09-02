@@ -352,8 +352,8 @@ func CXOnePoint(ind1 *PrimitiveTree, ind2 *PrimitiveTree) {
 
 		slice1Begin, slice1End := ind1.SearchSubtree(index1)
 		slice2Begin, slice2End := ind2.SearchSubtree(index2)
-		ind1.stack = slices.Replace(ind1.stack, slice1Begin, slice1End, ind2.stack[slice2Begin:slice2End]...)
-		ind2.stack = slices.Replace(ind2.stack, slice2Begin, slice2End, ind1.stack[slice1Begin:slice1End]...)
+		ind1.stack = replaceInRange(ind1.stack, slice1Begin, slice1End, ind2.stack[slice2Begin:slice2End]...)
+		ind2.stack = replaceInRange(ind2.stack, slice2Begin, slice2End, ind1.stack[slice1Begin:slice1End]...)
 	}
 }
 
@@ -364,5 +364,11 @@ func MutUniform(ind *PrimitiveTree, expr func(*PrimitiveSet, reflect.Kind) []Nod
 	type_ := ind.stack[index].Ret()
 	newNodes := expr(ps, type_)
 	fmt.Printf("mutation from %d to %d adding: %d nodes\n", sliceStart, sliceEnd, len(newNodes))
-	slices.Replace(ind.stack, sliceStart, sliceEnd, newNodes...)
+	ind.stack = replaceInRange(ind.stack, sliceStart, sliceEnd, newNodes...)
+}
+
+func replaceInRange(stack []Node, start, end int, insert ...Node) []Node {
+	stack = slices.Delete(stack, start, end)
+	stack = slices.Insert(stack, start, insert...)
+	return stack
 }

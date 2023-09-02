@@ -43,16 +43,19 @@ func main() {
 	count := 100
 	for count > 0 && len(fmt.Sprint(ret)) > 4 {
 		fmt.Println("===========================================")
-		fmt.Print("Before CX:           ")
+		fmt.Printf("Before CX %d:\n", len(ret.Nodes()))
+		fmt.Println(ret)
 		printNodes(ret)
 		gp.CXOnePoint(ret, ret2)
-		fmt.Print("After CX before mut: ")
+		fmt.Printf("After CX before mut %d:\n", len(ret.Nodes()))
+		fmt.Println(ret)
 		printNodes(ret)
 
 		gp.MutUniform(ret, func(ps *gp.PrimitiveSet, type_ reflect.Kind) []gp.Node {
 			return gp.GenerateTree(ps, 0, 2, gp.GenGrow, type_).Nodes()
 		}, ps)
-		fmt.Print("After mut:           ")
+		fmt.Printf("After mut %d:\n", len(ret.Nodes()))
+		fmt.Println(ret)
 		printNodes(ret)
 		fmt.Printf("mut and CX tree len(%d): %s=%s\n", len(ret.Nodes()), ret, ret.Compile())
 		count--
