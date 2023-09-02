@@ -46,3 +46,34 @@ func TestPrimitiveTreeHeight(t *testing.T) {
 	tree := NewPrimitiveTree(getValidNodes())
 	assert.Equal(t, 2, tree.Height())
 }
+
+func TestSearchSubtree(t *testing.T) {
+	type TestCase struct {
+		index         int
+		expectedStart int
+		expectedEnd   int
+	}
+	nodes := getValidNodes()
+	tree := NewPrimitiveTree(nodes)
+	for _, scenario := range []TestCase{
+		{
+			index:         0,
+			expectedStart: 0,
+			expectedEnd:   len(nodes),
+		},
+		{
+			index:         1,
+			expectedStart: 1,
+			expectedEnd:   2,
+		},
+		{
+			index:         2,
+			expectedStart: 2,
+			expectedEnd:   5,
+		},
+	} {
+		actualStart, actualEnd := tree.SearchSubtree(scenario.index)
+		assert.Equal(t, scenario.expectedStart, actualStart)
+		assert.Equal(t, scenario.expectedEnd, actualEnd)
+	}
+}
