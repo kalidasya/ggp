@@ -106,6 +106,7 @@ func (pt *PrimitiveTree) Height() int {
 func (pt *PrimitiveTree) SearchSubtree(begin int) (int, int) {
 	end := begin + 1
 	total := pt.stack[begin].Arity()
+	fmt.Printf("begin node %s arity is %d in index %d\n", pt.stack[begin].Name(), total, begin)
 	for total > 0 {
 		total += pt.stack[end].Arity() - 1
 		end++
@@ -148,7 +149,12 @@ func (t *Terminal) Eval(_ []interface{}) (interface{}, error) {
 }
 
 func (t *Terminal) Str(_ []string) string {
-	return fmt.Sprintf("%v", t.value)
+	switch t.retType {
+	case reflect.String:
+		return fmt.Sprintf(`"%s"`, t.value)
+	default:
+		return fmt.Sprintf("%v", t.value)
+	}
 }
 
 func (t *Terminal) Ret() reflect.Kind {
@@ -349,11 +355,14 @@ func CXOnePoint(ind1 *PrimitiveTree, ind2 *PrimitiveTree) {
 
 		index1 := types1[type_][r.Intn(len(types1[type_]))]
 		index2 := types2[type_][r.Intn(len(types2[type_]))]
+		fmt.Printf("Points for crossover index1: %d index2: %d\n", index1, index2)
+		fmt.Printf("t1: %v t2: %v\n", types1[type_], types2[type_])
 
 		slice1Begin, slice1End := ind1.SearchSubtree(index1)
 		slice2Begin, slice2End := ind2.SearchSubtree(index2)
-		ind1.stack = replaceInRange(ind1.stack, slice1Begin, slice1End, ind2.stack[slice2Begin:slice2End]...)
+		temp_stack := replaceInRange(ind1.stack, slice1Begin, slice1End, ind2.stack[slice2Begin:slice2End]...)
 		ind2.stack = replaceInRange(ind2.stack, slice2Begin, slice2End, ind1.stack[slice1Begin:slice1End]...)
+		ind1.stack = temp_stack
 	}
 }
 
