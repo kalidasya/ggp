@@ -52,9 +52,9 @@ func main() {
 		gp.MutUniform(ret, func(ps *gp.PrimitiveSet, type_ reflect.Kind) []gp.Node {
 			return gp.GenerateTree(ps, 0, 2, gp.GenGrow, type_).Nodes()
 		}, ps)
-		fmt.Printf("mut and CX tree len(%d): %s=%s\n", len(ret.Nodes()), ret, ret.Compile())
 		fmt.Print("After mut:           ")
 		printNodes(ret)
+		fmt.Printf("mut and CX tree len(%d): %s=%s\n", len(ret.Nodes()), ret, ret.Compile())
 		count--
 	}
 	fmt.Printf("Reached %d iteration\n", 100-count)
