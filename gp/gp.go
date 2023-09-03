@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 	"math/rand"
 	"reflect"
 	"strings"
@@ -333,23 +332,8 @@ func CXOnePoint(ind1 *PrimitiveTree, ind2 *PrimitiveTree) {
 		types2[n.Ret()] = append(types2[n.Ret()], i+1)
 	}
 
-	// todo refactor to set creation and intersection
-	type1Keys := maps.Keys(types1)
-	slices.Sort(type1Keys)
-	slices.Compact(type1Keys)
+	commonTypes := Intersect(maps.Keys(types1), maps.Keys(types2))
 
-	type2Keys := maps.Keys(types2)
-	slices.Sort(type2Keys)
-	slices.Compact(type2Keys)
-
-	var commonTypes []reflect.Kind
-	for _, t1 := range type1Keys {
-		for _, t2 := range type2Keys {
-			if t1 == t2 {
-				commonTypes = append(commonTypes, t1)
-			}
-		}
-	}
 	if len(commonTypes) > 0 {
 		type_ := commonTypes[r.Intn(len(commonTypes))]
 
@@ -374,10 +358,4 @@ func MutUniform(ind *PrimitiveTree, expr func(*PrimitiveSet, reflect.Kind) []Nod
 	newNodes := expr(ps, type_)
 	fmt.Printf("mutation from %d to %d adding: %d nodes\n", sliceStart, sliceEnd, len(newNodes))
 	ind.stack = replaceInRange(ind.stack, sliceStart, sliceEnd, newNodes...)
-}
-
-func replaceInRange(stack []Node, start, end int, insert ...Node) []Node {
-	stack = slices.Delete(stack, start, end)
-	stack = slices.Insert(stack, start, insert...)
-	return stack
 }

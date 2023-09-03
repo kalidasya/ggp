@@ -26,6 +26,16 @@ func getValidNodes() []Node {
 	}
 }
 
+func getPrimitiveSet() *PrimitiveSet {
+	ps := NewPrimitiveSet([]reflect.Kind{reflect.Int, reflect.String}, reflect.Int)
+	ps.AddPrimitive(prim1)
+	ps.AddPrimitive(prim2)
+	ps.AddTerminal(term1)
+	ps.AddTerminal(term2)
+
+	return ps
+}
+
 func TestPrimitiveTreeString(t *testing.T) {
 	tree := NewPrimitiveTree(getValidNodes())
 	assert.Equal(t, `func1(4, func2("hello", 4))`, tree.String())
@@ -76,4 +86,13 @@ func TestSearchSubtree(t *testing.T) {
 		assert.Equal(t, scenario.expectedStart, actualStart)
 		assert.Equal(t, scenario.expectedEnd, actualEnd)
 	}
+}
+
+func TestMutUniform(t *testing.T) {
+	tree := NewPrimitiveTree(getValidNodes())
+	ps := getPrimitiveSet()
+	MutUniform(tree, func(ps *PrimitiveSet, type_ reflect.Kind) []Node {
+		return GenerateTree(ps, 0, 2, GenGrow, type_).Nodes()
+	}, ps)
+
 }
