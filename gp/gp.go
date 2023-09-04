@@ -4,10 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"golang.org/x/exp/maps"
-	"math/rand"
 	"reflect"
 	"strings"
-	"time"
 )
 
 type PrimitiveFunc func(...interface{}) interface{}
@@ -15,7 +13,8 @@ type PrimitiveFunc func(...interface{}) interface{}
 type GenCondition func(int, int, int, int, *PrimitiveSet) bool
 
 var GenGrow GenCondition = func(height int, depth int, min int, max int, ps *PrimitiveSet) bool {
-	return depth == height || (depth >= min && rand.Float32() < ps.TerminalRatio())
+	r := NewRealRandom()
+	return depth == height || (depth >= min && r.Float32() < ps.TerminalRatio())
 }
 
 var GenFull GenCondition = func(height int, depth int, _min int, _max int, _ps *PrimitiveSet) bool {
@@ -278,15 +277,10 @@ type StackItem struct {
 	t reflect.Kind
 }
 
-func GenerateTree(ps *PrimitiveSet, min int, max int, condition GenCondition, type_ reflect.Kind) *PrimitiveTree {
+func GenerateTree(ps *PrimitiveSet, min int, max int, condition GenCondition, type_ reflect.Kind, r Random) *PrimitiveTree {
 	var expr []Node
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	height := r.Intn(max-min) + min
 	fmt.Printf("Generated height: %d\n", height)
-
-	if type_ == reflect.Invalid {
-		type_ = ps.RetType
-	}
 
 	stack := []StackItem{
 		{i: 0, t: type_},
@@ -317,8 +311,7 @@ func GenerateTree(ps *PrimitiveSet, min int, max int, condition GenCondition, ty
 	return NewPrimitiveTree(expr)
 }
 
-func CXOnePoint(ind1 *PrimitiveTree, ind2 *PrimitiveTree) {
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+func CXOnePoint(ind1 *PrimitiveTree, ind2 *PrimitiveTree, r Random) {
 	if len(ind1.stack) < 2 || len(ind2.stack) < 2 {
 		return
 	}
@@ -350,8 +343,7 @@ func CXOnePoint(ind1 *PrimitiveTree, ind2 *PrimitiveTree) {
 	}
 }
 
-func MutUniform(ind *PrimitiveTree, expr func(*PrimitiveSet, reflect.Kind) []Node, ps *PrimitiveSet) {
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+func MutUniform(ind *PrimitiveTree, expr func(*PrimitiveSet, reflect.Kind) []Node, ps *PrimitiveSet, r Random) {
 	index := r.Intn(len(ind.stack))
 	sliceStart, sliceEnd := ind.SearchSubtree(index)
 	type_ := ind.stack[index].Ret()

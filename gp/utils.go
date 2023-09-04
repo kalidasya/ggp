@@ -3,6 +3,8 @@ package gp
 import (
 	"golang.org/x/exp/constraints"
 	"golang.org/x/exp/slices"
+	"math/rand"
+	"time"
 )
 
 func Max(a int, b int) int {
@@ -47,4 +49,23 @@ func Intersect[T constraints.Ordered](s1 []T, s2 []T) []T {
 		}
 	}
 	return intersection
+}
+
+type Random interface {
+	Intn(int) int
+	Float32() float32
+}
+
+type RealRandom struct{}
+
+func (r *RealRandom) Intn(n int) int {
+	return rand.New(rand.NewSource(time.Now().UnixNano())).Intn(n)
+}
+
+func (r *RealRandom) Float32() float32 {
+	return rand.New(rand.NewSource(time.Now().UnixNano())).Float32()
+}
+
+func NewRealRandom() *RealRandom {
+	return &RealRandom{}
 }
