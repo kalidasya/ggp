@@ -1,10 +1,11 @@
 package gp
 
 import (
+	"fmt"
+	"strings"
+
 	"golang.org/x/exp/constraints"
 	"golang.org/x/exp/slices"
-	"math/rand"
-	"time"
 )
 
 func Max(a int, b int) int {
@@ -26,8 +27,23 @@ func Pop[T any](s []T) ([]T, T) {
 }
 
 func replaceInRange(stack []Node, start, end int, insert ...Node) []Node {
+	stack = slices.Clone(stack)
+	fmt.Printf("Orig slice deleting from %d to %d:\n", start, end)
+	PrintNodes(stack)
 	stack = slices.Delete(stack, start, end)
+	lenNeeded := len(stack) + len(insert)
+	fmt.Println("After delete slice:")
+	PrintNodes(stack)
+	fmt.Println("inserting")
+	PrintNodes(insert)
+	fmt.Printf("at: %d\nstack len: %d cap: %d total needed: %d \n", start, len(stack), cap(stack), lenNeeded)
+	if lenNeeded > cap(stack) {
+		stack = slices.Grow(stack, lenNeeded-cap(stack))
+		fmt.Printf("stack grown to len: %d cap: %d \n", len(stack), cap(stack))
+	}
 	stack = slices.Insert(stack, start, insert...)
+	fmt.Printf("stack len after insert: %d cap: %d \n", len(stack), cap(stack))
+	PrintNodes(stack)
 	return stack
 }
 
@@ -51,21 +67,14 @@ func Intersect[T constraints.Ordered](s1 []T, s2 []T) []T {
 	return intersection
 }
 
-type Random interface {
-	Intn(int) int
-	Float32() float32
+func NodesAsString(nodes []Node) string {
+	var b strings.Builder
+	for _, n := range nodes {
+		fmt.Fprintf(&b, "%s ", n.Name())
+	}
+	return b.String()
 }
 
-type RealRandom struct{}
-
-func (r *RealRandom) Intn(n int) int {
-	return rand.New(rand.NewSource(time.Now().UnixNano())).Intn(n)
-}
-
-func (r *RealRandom) Float32() float32 {
-	return rand.New(rand.NewSource(time.Now().UnixNano())).Float32()
-}
-
-func NewRealRandom() *RealRandom {
-	return &RealRandom{}
+func PrintNodes(nodes []Node) {
+	fmt.Println(NodesAsString(nodes))
 }

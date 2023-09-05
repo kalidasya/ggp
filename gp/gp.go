@@ -4,8 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"golang.org/x/exp/maps"
+	"math/rand"
 	"reflect"
 	"strings"
+	"time"
 )
 
 type PrimitiveFunc func(...interface{}) interface{}
@@ -13,7 +15,7 @@ type PrimitiveFunc func(...interface{}) interface{}
 type GenCondition func(int, int, int, int, *PrimitiveSet) bool
 
 var GenGrow GenCondition = func(height int, depth int, min int, max int, ps *PrimitiveSet) bool {
-	r := NewRealRandom()
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	return depth == height || (depth >= min && r.Float32() < ps.TerminalRatio())
 }
 
@@ -70,6 +72,7 @@ func (pt *PrimitiveTree) Compile() interface{} {
 			// fmt.Printf("last stack %s %v\n", n.node.Name(), n.args)
 			res, err := n.node.Eval(n.args)
 			if err != nil {
+				fmt.Println(err.Error())
 				panic("eval error")
 			}
 			if len(stack) == 0 {
@@ -277,7 +280,7 @@ type StackItem struct {
 	t reflect.Kind
 }
 
-func GenerateTree(ps *PrimitiveSet, min int, max int, condition GenCondition, type_ reflect.Kind, r Random) *PrimitiveTree {
+func GenerateTree(ps *PrimitiveSet, min int, max int, condition GenCondition, type_ reflect.Kind, r *rand.Rand) *PrimitiveTree {
 	var expr []Node
 	height := r.Intn(max-min) + min
 	fmt.Printf("Generated height: %d\n", height)
@@ -311,7 +314,7 @@ func GenerateTree(ps *PrimitiveSet, min int, max int, condition GenCondition, ty
 	return NewPrimitiveTree(expr)
 }
 
-func CXOnePoint(ind1 *PrimitiveTree, ind2 *PrimitiveTree, r Random) {
+func CXOnePoint(ind1 *PrimitiveTree, ind2 *PrimitiveTree, r *rand.Rand) {
 	if len(ind1.stack) < 2 || len(ind2.stack) < 2 {
 		return
 	}
@@ -337,17 +340,32 @@ func CXOnePoint(ind1 *PrimitiveTree, ind2 *PrimitiveTree, r Random) {
 
 		slice1Begin, slice1End := ind1.SearchSubtree(index1)
 		slice2Begin, slice2End := ind2.SearchSubtree(index2)
+		fmt.Printf("slice1: %d, %d\n", slice1Begin, slice1End)
+		fmt.Printf("slice2: %d, %d\n", slice2Begin, slice2End)
+
+		fmt.Printf("+slice1: %s\n", ind1)
+		fmt.Printf("+slice2: %s\n", ind2)
+		PrintNodes(ind1.stack)
+		PrintNodes(ind2.stack)
+		fmt.Println("+Slice1-->tree2:")
+		PrintNodes(ind1.stack[slice1Begin:slice1End])
+		fmt.Println("+Slice2-->tree1:")
+		PrintNodes(ind2.stack[slice2Begin:slice2End])
 		temp_stack := replaceInRange(ind1.stack, slice1Begin, slice1End, ind2.stack[slice2Begin:slice2End]...)
 		ind2.stack = replaceInRange(ind2.stack, slice2Begin, slice2End, ind1.stack[slice1Begin:slice1End]...)
 		ind1.stack = temp_stack
+
+		fmt.Printf("++slice1: %s\n", ind1)
+		fmt.Printf("++slice2: %s\n", ind2)
+		PrintNodes(ind1.stack)
+		PrintNodes(ind2.stack)
 	}
 }
 
-func MutUniform(ind *PrimitiveTree, expr func(*PrimitiveSet, reflect.Kind) []Node, ps *PrimitiveSet, r Random) {
+func MutUniform(ind *PrimitiveTree, expr func(*PrimitiveSet, reflect.Kind) []Node, ps *PrimitiveSet, r *rand.Rand) {
 	index := r.Intn(len(ind.stack))
 	sliceStart, sliceEnd := ind.SearchSubtree(index)
 	type_ := ind.stack[index].Ret()
 	newNodes := expr(ps, type_)
-	fmt.Printf("mutation from %d to %d adding: %d nodes\n", sliceStart, sliceEnd, len(newNodes))
 	ind.stack = replaceInRange(ind.stack, sliceStart, sliceEnd, newNodes...)
 }
