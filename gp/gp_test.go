@@ -115,35 +115,19 @@ func TestMutUniform(t *testing.T) {
 	assert.NotNil(t, tree.Compile())
 }
 
-/*
-var prim1 = NewPrimitive("func1", func1, []reflect.Kind{reflect.Int, reflect.String}, reflect.Int)
-var prim2 = NewPrimitive("func2", func2, []reflect.Kind{reflect.String, reflect.Int}, reflect.String)
-var term1 = NewTerminal("term1", reflect.Int, 4)
-var term2 = NewTerminal("term2", reflect.String, "hello")
-*/
-
-func TestCXOnePoint(t *testing.T) {
+func TestCXOnePointestCXOnePoint(t *testing.T) {
 	tree1 := &PrimitiveTree{
-		stack: []Node{prim1, prim1, prim1, term1, term2, prim2, term2, term1, prim2, term2, term1, prim1, term1, term2}}
-
-	PrintNodes(tree1.Nodes())
-	fmt.Printf("%s\n", tree1)
-	assert.NotNil(t, tree1.Compile())
+		stack: []Node{prim1, prim1, prim1, term1, term2, prim2, term2, term1, prim2, term2, prim1, term1, term2}}
+	tree1.Compile()
 	tree2 := &PrimitiveTree{
 		stack: []Node{prim2, prim2, term2, term1, prim1, term1, term2},
 	}
-	assert.NotNil(t, tree2.Compile())
+	tree2.Compile()
 
-	fmt.Println(tree1)
-	fmt.Println(tree2)
 	r := rand.New(rand.NewSource(715))
-
-	fmt.Println("------------------")
-	CXOnePoint(tree1, tree2, r) // node at index 9 in tree 1 will be replaced with node index 2 in tree 2
-	fmt.Println(tree1)
-	fmt.Println(tree2)
-	assert.Equal(t, `prim1(prim1(prim2("hello", 4), prim2("hello", 4)), prim1(prim2("hello", prim1(4, "hello")), prim1(4, "hello")))`, fmt.Sprintf("%s", tree1))
-	assert.Equal(t, `prim2(prim2("hello", 4), 4)`, fmt.Sprintf("%s", tree2))
+	CXOnePoint(tree1, tree2, r) // node at index 3 in tree1 will be replaced with node index 4:7 in tree2
+	assert.Equal(t, []Node{prim1, prim1, prim1, prim1, term1, term2, term2, prim2, term2, term1, prim2, term2, prim1, term1, term2}, tree1.stack)
+	assert.Equal(t, []Node{prim2, prim2, term2, term1, term1}, tree2.stack)
 	tree1.Compile()
 	tree2.Compile()
 }

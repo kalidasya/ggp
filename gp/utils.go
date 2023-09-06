@@ -26,33 +26,16 @@ func Pop[T any](s []T) ([]T, T) {
 	return s[:len(s)-1], s[len(s)-1]
 }
 
-func replaceInRange(stack []Node, start, end int, insert ...Node) []Node {
-	stack = slices.Clone(stack)
-	fmt.Printf("Orig slice deleting from %d to %d:\n", start, end)
-	PrintNodes(stack)
+func ReplaceInRange[T any](stack []T, start, end int, insert ...T) []T {
+	stack = slices.Clone(stack) // todo create unittest
 	stack = slices.Delete(stack, start, end)
-	lenNeeded := len(stack) + len(insert)
-	fmt.Println("After delete slice:")
-	PrintNodes(stack)
-	fmt.Println("inserting")
-	PrintNodes(insert)
-	fmt.Printf("at: %d\nstack len: %d cap: %d total needed: %d \n", start, len(stack), cap(stack), lenNeeded)
-	if lenNeeded > cap(stack) {
-		stack = slices.Grow(stack, lenNeeded-cap(stack))
-		fmt.Printf("stack grown to len: %d cap: %d \n", len(stack), cap(stack))
-	}
 	stack = slices.Insert(stack, start, insert...)
-	fmt.Printf("stack len after insert: %d cap: %d \n", len(stack), cap(stack))
-	PrintNodes(stack)
 	return stack
 }
 
 func Intersect[T constraints.Ordered](s1 []T, s2 []T) []T {
-	// type1Keys := maps.Keys(types1)
 	slices.Sort(s1)
 	slices.Compact(s1)
-
-	// type2Keys := maps.Keys(types2)
 	slices.Sort(s2)
 	slices.Compact(s2)
 

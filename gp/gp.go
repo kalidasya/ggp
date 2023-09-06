@@ -129,6 +129,7 @@ type Node interface {
 	Eval([]interface{}) (interface{}, error)
 	Str([]string) string
 	Ret() reflect.Kind
+	String() string
 }
 
 type Terminal struct {
@@ -160,6 +161,10 @@ func (t *Terminal) Str(_ []string) string {
 
 func (t *Terminal) Ret() reflect.Kind {
 	return t.retType
+}
+
+func (t *Terminal) String() string {
+	return t.name
 }
 
 var _ Node = new(Terminal)
@@ -212,7 +217,7 @@ func (p *Primitive) Eval(args []interface{}) (interface{}, error) {
 	}
 	for i, arg := range args {
 		if reflect.TypeOf(arg).Kind() != p.argTypes[i] {
-			return nil, errors.New(fmt.Sprintf("invalid type for %dth argument", i))
+			return nil, errors.New(fmt.Sprintf("invalid type for %dth argument", i+1))
 		}
 
 	}
@@ -225,6 +230,10 @@ func (p *Primitive) Str(args []string) string {
 
 func (p *Primitive) Ret() reflect.Kind {
 	return p.retType
+}
+
+func (p *Primitive) String() string {
+	return p.name
 }
 
 var _ Node = new(Primitive)
@@ -332,33 +341,15 @@ func CXOnePoint(ind1 *PrimitiveTree, ind2 *PrimitiveTree, r *rand.Rand) {
 
 	if len(commonTypes) > 0 {
 		type_ := commonTypes[r.Intn(len(commonTypes))]
-
 		index1 := types1[type_][r.Intn(len(types1[type_]))]
 		index2 := types2[type_][r.Intn(len(types2[type_]))]
-		fmt.Printf("Points for crossover index1: %d index2: %d\n", index1, index2)
-		fmt.Printf("t1: %v t2: %v\n", types1[type_], types2[type_])
 
 		slice1Begin, slice1End := ind1.SearchSubtree(index1)
 		slice2Begin, slice2End := ind2.SearchSubtree(index2)
-		fmt.Printf("slice1: %d, %d\n", slice1Begin, slice1End)
-		fmt.Printf("slice2: %d, %d\n", slice2Begin, slice2End)
 
-		fmt.Printf("+slice1: %s\n", ind1)
-		fmt.Printf("+slice2: %s\n", ind2)
-		PrintNodes(ind1.stack)
-		PrintNodes(ind2.stack)
-		fmt.Println("+Slice1-->tree2:")
-		PrintNodes(ind1.stack[slice1Begin:slice1End])
-		fmt.Println("+Slice2-->tree1:")
-		PrintNodes(ind2.stack[slice2Begin:slice2End])
-		temp_stack := replaceInRange(ind1.stack, slice1Begin, slice1End, ind2.stack[slice2Begin:slice2End]...)
-		ind2.stack = replaceInRange(ind2.stack, slice2Begin, slice2End, ind1.stack[slice1Begin:slice1End]...)
+		temp_stack := ReplaceInRange(ind1.stack, slice1Begin, slice1End, ind2.stack[slice2Begin:slice2End]...)
+		ind2.stack = ReplaceInRange(ind2.stack, slice2Begin, slice2End, ind1.stack[slice1Begin:slice1End]...)
 		ind1.stack = temp_stack
-
-		fmt.Printf("++slice1: %s\n", ind1)
-		fmt.Printf("++slice2: %s\n", ind2)
-		PrintNodes(ind1.stack)
-		PrintNodes(ind2.stack)
 	}
 }
 
@@ -367,5 +358,5 @@ func MutUniform(ind *PrimitiveTree, expr func(*PrimitiveSet, reflect.Kind) []Nod
 	sliceStart, sliceEnd := ind.SearchSubtree(index)
 	type_ := ind.stack[index].Ret()
 	newNodes := expr(ps, type_)
-	ind.stack = replaceInRange(ind.stack, sliceStart, sliceEnd, newNodes...)
+	ind.stack = ReplaceInRange(ind.stack, sliceStart, sliceEnd, newNodes...)
 }
