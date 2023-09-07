@@ -251,14 +251,20 @@ func NewPrimitive(name string, f PrimitiveFunc, argTypes []reflect.Kind, retType
 // -------------- PrimitiveSet
 
 type PrimitiveSet struct {
-	Primitives map[reflect.Kind][]*Primitive
-	Terminals  map[reflect.Kind][]*Terminal
+	Primitives map[reflect.Kind][]*Node
+	Terminals  map[reflect.Kind][]*Node
 	InTypes    []reflect.Kind
 	RetType    reflect.Kind
 	Arity      int
 }
 
 func (ps *PrimitiveSet) AddPrimitive(p *Primitive) {
+  terms := ps.Terminals[t.retType]
+	ps.Terminals[t.retType] = append(terms, t)
+  
+  prims := ps.Primitives[t.retType]
+	ps.Primitives[t.retType] = append(prims, t)
+  
 	for _, argType := range p.argTypes {
 		val := ps.Primitives[argType]
 		ps.Primitives[argType] = append(val, p)
@@ -266,14 +272,18 @@ func (ps *PrimitiveSet) AddPrimitive(p *Primitive) {
 }
 
 func (ps *PrimitiveSet) AddTerminal(t *Terminal) {
-	val := ps.Terminals[t.retType]
-	ps.Terminals[t.retType] = append(val, t)
+	terms := ps.Terminals[t.retType]
+	ps.Terminals[t.retType] = append(terms, t)
+  
+  prims := ps.Primitives[t.retType]
+	ps.Primitives[t.retType] = append(prims, t)
 }
 
 func (ps *PrimitiveSet) TerminalRatio() float32 {
 	return float32(len(ps.Terminals)) / float32(len(ps.Terminals)+len(ps.Primitives))
 }
 
+// TODO input types are ignored, no symbolic terminal
 func NewPrimitiveSet(inTypes []reflect.Kind, retType reflect.Kind) *PrimitiveSet {
 	return &PrimitiveSet{
 		Primitives: make(map[reflect.Kind][]*Primitive),
@@ -301,21 +311,24 @@ func GenerateTree(ps *PrimitiveSet, min int, max int, condition GenCondition, ty
 	for len(stack) != 0 {
 		var item StackItem
 		stack, item = Pop(stack)
-		depth := item.i
-		realType := item.t
+		depth, realType := item.i, item.t
+		// realType := item.t
 		if condition(height, depth, min, max, ps) {
 			term := ps.Terminals[realType][r.Intn(len(ps.Terminals[realType]))]
 			if term == nil {
-				panic("No terminal with type available")
+				panic("No terminal with type available") // assert.Panics
 			}
 			expr = append(expr, term)
 		} else {
+      fmt.Printf("Popped from stack: %d type: %d, prim list %v\n", depth, realType, ps.Primitives[realType])
 			prim := ps.Primitives[realType][r.Intn(len(ps.Primitives[realType]))]
+      fmt.Printf("selected %s \n", prim)
 			if prim == nil {
 				panic("No primitive with type available")
 			}
 			expr = append(expr, prim)
 			for i := len(prim.argTypes) - 1; i >= 0; i-- {
+        fmt.Printf("Adding item to stack depth %d argtype: %d\n", depth+1, prim.argTypes[i])
 				stack = append(stack, StackItem{i: depth + 1, t: prim.argTypes[i]})
 			}
 		}
@@ -360,3 +373,27 @@ func MutUniform(ind *PrimitiveTree, expr func(*PrimitiveSet, reflect.Kind) []Nod
 	newNodes := expr(ps, type_)
 	ind.stack = ReplaceInRange(ind.stack, sliceStart, sliceEnd, newNodes...)
 }
+
+
+prim2(
+  prim2(
+    prim1(
+      prim1(4, "hello"), 
+      prim2("hello", 4)
+    ), 
+    prim2(
+      prim2("hello", 4), 
+      prim2("hello", 4)
+    )
+  ), 
+  prim2(
+    prim2(
+      prim1(4, "hello"), 
+      prim1(4, "hello")
+    ), 
+    prim2(
+      prim2("hello", 4), 
+      prim2("hello", 4)
+    )
+  )
+)

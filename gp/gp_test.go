@@ -35,7 +35,7 @@ func getValidNodes2() []Node {
 }
 
 func getPrimitiveSet() *PrimitiveSet {
-	ps := NewPrimitiveSet([]reflect.Kind{reflect.Int, reflect.String}, reflect.Int)
+	ps := NewPrimitiveSet([]reflect.Kind{}, reflect.Int)
 	ps.AddPrimitive(prim1)
 	ps.AddPrimitive(prim2)
 	ps.AddTerminal(term1)
@@ -97,7 +97,25 @@ func TestSearchSubtree(t *testing.T) {
 }
 
 func TestGenerateTree(t *testing.T) {
-
+  ps := getPrimitiveSet()
+  
+  r := rand.New(rand.NewSource(17))
+  tree1 := GenerateTree(ps, 3, 5, GenFull, ps.RetType, r)
+  // r = rand.New(rand.NewSource(17))
+  // tree1Again := GenerateTree(ps, 3, 5, GenFull, ps.RetType, r)
+  
+  // tree2 := GenerateTree(ps, 3, 5, GenGrow, ps.RetType, r)
+  
+  // assert.Equal(t, tree1.Nodes(), tree1Again.Nodes())
+  // assert.NotEqual(t, tree1.Nodes(), tree2.Nodes())
+  assert.GreaterOrEqual(t, tree1.Height(), 3)
+  assert.LessOrEqual(t, tree1.Height(), 5)
+  // assert.GreaterOrEqual(t, tree2.Height(), 3)
+  // assert.LessOrEqual(t, tree2.Height(), 5)
+  PrintNodes(tree1.Nodes())
+  fmt.Printf("%s\n", tree1)
+  assert.NotPanics(t, func(){tree1.Compile()})
+  // assert.NotPanics(t, func(){tree2.Compile()})
 }
 
 func TestMutUniform(t *testing.T) {
@@ -112,22 +130,22 @@ func TestMutUniform(t *testing.T) {
 	assert.Len(t, tree.Nodes(), origLen+2) // adds 3 nodes and removes one
 	assert.NotEqual(t, beforeMut, fmt.Sprintf("%s", tree))
 	assert.Equal(t, `prim1(4, prim2(prim2("hello", 4), 4))`, fmt.Sprintf("%s", tree))
-	assert.NotNil(t, tree.Compile())
+	assert.NotPanics(t, func(){ tree.Compile()})
 }
 
 func TestCXOnePointestCXOnePoint(t *testing.T) {
 	tree1 := &PrimitiveTree{
 		stack: []Node{prim1, prim1, prim1, term1, term2, prim2, term2, term1, prim2, term2, prim1, term1, term2}}
-	tree1.Compile()
+	assert.NotPanics(t, func(){ tree1.Compile()})
 	tree2 := &PrimitiveTree{
 		stack: []Node{prim2, prim2, term2, term1, prim1, term1, term2},
 	}
-	tree2.Compile()
+	assert.NotPanics(t, func(){ tree2.Compile()})
 
 	r := rand.New(rand.NewSource(715))
 	CXOnePoint(tree1, tree2, r) // node at index 3 in tree1 will be replaced with node index 4:7 in tree2
 	assert.Equal(t, []Node{prim1, prim1, prim1, prim1, term1, term2, term2, prim2, term2, term1, prim2, term2, prim1, term1, term2}, tree1.stack)
 	assert.Equal(t, []Node{prim2, prim2, term2, term1, term1}, tree2.stack)
-	tree1.Compile()
-	tree2.Compile()
+	assert.NotPanics(t, func(){ tree1.Compile()})
+	assert.NotPanics(t, func(){ tree2.Compile()})
 }
