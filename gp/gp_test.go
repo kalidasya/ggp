@@ -1,6 +1,8 @@
 package gp
 
 import (
+	"fmt"
+	"math/rand"
 	"reflect"
 	"strings"
 	"testing"
@@ -15,8 +17,8 @@ var func2 PrimitiveFunc = func(a ...interface{}) interface{} {
 	return strings.Repeat(a[0].(string), a[1].(int))
 }
 
-var prim1 = NewPrimitive("func1", func1, []reflect.Kind{reflect.Int, reflect.String}, reflect.Int)
-var prim2 = NewPrimitive("func2", func2, []reflect.Kind{reflect.String, reflect.Int}, reflect.String)
+var prim1 = NewPrimitive("prim1", func1, []reflect.Kind{reflect.Int, reflect.String}, reflect.Int)
+var prim2 = NewPrimitive("prim2", func2, []reflect.Kind{reflect.String, reflect.Int}, reflect.String)
 var term1 = NewTerminal("term1", reflect.Int, 4)
 var term2 = NewTerminal("term2", reflect.String, "hello")
 
@@ -26,8 +28,14 @@ func getValidNodes() []Node {
 	}
 }
 
+func getValidNodes2() []Node {
+	return []Node{
+		prim2, term2, prim1, term1, term2,
+	}
+}
+
 func getPrimitiveSet() *PrimitiveSet {
-	ps := NewPrimitiveSet([]reflect.Kind{reflect.Int, reflect.String}, reflect.Int)
+	ps := NewPrimitiveSet([]reflect.Kind{}, reflect.Int)
 	ps.AddPrimitive(prim1)
 	ps.AddPrimitive(prim2)
 	ps.AddTerminal(term1)
@@ -38,7 +46,7 @@ func getPrimitiveSet() *PrimitiveSet {
 
 func TestPrimitiveTreeString(t *testing.T) {
 	tree := NewPrimitiveTree(getValidNodes())
-	assert.Equal(t, `func1(4, func2("hello", 4))`, tree.String())
+	assert.Equal(t, `prim1(4, prim2("hello", 4))`, tree.String())
 }
 
 func TestPrimitiveTreeCompile(t *testing.T) {
@@ -88,11 +96,53 @@ func TestSearchSubtree(t *testing.T) {
 	}
 }
 
+func TestGenerateTree(t *testing.T) {
+	ps := getPrimitiveSet()
+
+	r := rand.New(rand.NewSource(17))
+	tree1 := GenerateTree(ps, 3, 5, GenFull, ps.RetType, r)
+	r = rand.New(rand.NewSource(17))
+	tree1Again := GenerateTree(ps, 3, 5, GenFull, ps.RetType, r)
+	tree2 := GenerateTree(ps, 3, 5, GenGrow, ps.RetType, r)
+
+	assert.Equal(t, tree1.Nodes(), tree1Again.Nodes())
+	assert.NotEqual(t, tree1.Nodes(), tree2.Nodes())
+	assert.GreaterOrEqual(t, tree1.Height(), 3)
+	assert.LessOrEqual(t, tree1.Height(), 5)
+	assert.GreaterOrEqual(t, tree2.Height(), 3)
+	assert.LessOrEqual(t, tree2.Height(), 5)
+	assert.NotPanics(t, func() { tree1.Compile() })
+	assert.NotPanics(t, func() { tree2.Compile() })
+}
+
 func TestMutUniform(t *testing.T) {
+	r := rand.New(rand.NewSource(4853))
 	tree := NewPrimitiveTree(getValidNodes())
 	ps := getPrimitiveSet()
+	origLen := len(tree.Nodes())
+	beforeMut := fmt.Sprintf("%s", tree)
 	MutUniform(tree, func(ps *PrimitiveSet, type_ reflect.Kind) []Node {
-		return GenerateTree(ps, 0, 2, GenGrow, type_).Nodes()
-	}, ps)
+		return GenerateTree(ps, 1, 2, GenGrow, type_, r).Nodes()
+	}, ps, r)
+	assert.Len(t, tree.Nodes(), origLen+2) // adds 3 nodes and removes one
+	assert.NotEqual(t, beforeMut, fmt.Sprintf("%s", tree))
+	assert.Equal(t, `prim1(4, prim2(prim2("hello", 4), 4))`, fmt.Sprintf("%s", tree))
+	assert.NotPanics(t, func() { tree.Compile() })
+}
 
+func TestCXOnePointestCXOnePoint(t *testing.T) {
+	tree1 := &PrimitiveTree{
+		stack: []Node{prim1, prim1, prim1, term1, term2, prim2, term2, term1, prim2, term2, prim1, term1, term2}}
+	assert.NotPanics(t, func() { tree1.Compile() })
+	tree2 := &PrimitiveTree{
+		stack: []Node{prim2, prim2, term2, term1, prim1, term1, term2},
+	}
+	assert.NotPanics(t, func() { tree2.Compile() })
+
+	r := rand.New(rand.NewSource(715))
+	CXOnePoint(tree1, tree2, r) // node at index 3 in tree1 will be replaced with node index 4:7 in tree2
+	assert.Equal(t, []Node{prim1, prim1, prim1, prim1, term1, term2, term2, prim2, term2, term1, prim2, term2, prim1, term1, term2}, tree1.stack)
+	assert.Equal(t, []Node{prim2, prim2, term2, term1, term1}, tree2.stack)
+	assert.NotPanics(t, func() { tree1.Compile() })
+	assert.NotPanics(t, func() { tree2.Compile() })
 }

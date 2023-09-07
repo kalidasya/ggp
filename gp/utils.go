@@ -1,6 +1,9 @@
 package gp
 
 import (
+	"fmt"
+	"strings"
+
 	"golang.org/x/exp/constraints"
 	"golang.org/x/exp/slices"
 )
@@ -23,18 +26,16 @@ func Pop[T any](s []T) ([]T, T) {
 	return s[:len(s)-1], s[len(s)-1]
 }
 
-func replaceInRange(stack []Node, start, end int, insert ...Node) []Node {
+func ReplaceInRange[T any](stack []T, start, end int, insert ...T) []T {
+	stack = slices.Clone(stack) // todo create unittest
 	stack = slices.Delete(stack, start, end)
 	stack = slices.Insert(stack, start, insert...)
 	return stack
 }
 
 func Intersect[T constraints.Ordered](s1 []T, s2 []T) []T {
-	// type1Keys := maps.Keys(types1)
 	slices.Sort(s1)
 	slices.Compact(s1)
-
-	// type2Keys := maps.Keys(types2)
 	slices.Sort(s2)
 	slices.Compact(s2)
 
@@ -47,4 +48,16 @@ func Intersect[T constraints.Ordered](s1 []T, s2 []T) []T {
 		}
 	}
 	return intersection
+}
+
+func NodesAsString(nodes []Node) string {
+	var b strings.Builder
+	for _, n := range nodes {
+		fmt.Fprintf(&b, "%s ", n.Name())
+	}
+	return b.String()
+}
+
+func PrintNodes(nodes []Node) {
+	fmt.Println(NodesAsString(nodes))
 }
