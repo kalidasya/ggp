@@ -251,32 +251,26 @@ func NewPrimitive(name string, f PrimitiveFunc, argTypes []reflect.Kind, retType
 // -------------- PrimitiveSet
 
 type PrimitiveSet struct {
-	Primitives map[reflect.Kind][]*Node
-	Terminals  map[reflect.Kind][]*Node
+	Primitives map[reflect.Kind][]*Primitive
+	Terminals  map[reflect.Kind][]*Terminal
 	InTypes    []reflect.Kind
 	RetType    reflect.Kind
 	Arity      int
 }
 
 func (ps *PrimitiveSet) AddPrimitive(p *Primitive) {
-  terms := ps.Terminals[t.retType]
-	ps.Terminals[t.retType] = append(terms, t)
-  
-  prims := ps.Primitives[t.retType]
-	ps.Primitives[t.retType] = append(prims, t)
-  
-	for _, argType := range p.argTypes {
-		val := ps.Primitives[argType]
-		ps.Primitives[argType] = append(val, p)
-	}
+	prims := ps.Primitives[p.retType]
+	ps.Primitives[p.Ret()] = append(prims, p)
+
+	// for _, argType := range p.argTypes {
+	// 	val := ps.Primitives[argType]
+	// 	ps.Primitives[argType] = append(val, p)
+	// }
 }
 
 func (ps *PrimitiveSet) AddTerminal(t *Terminal) {
 	terms := ps.Terminals[t.retType]
 	ps.Terminals[t.retType] = append(terms, t)
-  
-  prims := ps.Primitives[t.retType]
-	ps.Primitives[t.retType] = append(prims, t)
 }
 
 func (ps *PrimitiveSet) TerminalRatio() float32 {
@@ -320,15 +314,15 @@ func GenerateTree(ps *PrimitiveSet, min int, max int, condition GenCondition, ty
 			}
 			expr = append(expr, term)
 		} else {
-      fmt.Printf("Popped from stack: %d type: %d, prim list %v\n", depth, realType, ps.Primitives[realType])
+			fmt.Printf("Popped from stack: %d type: %d, prim list %v\n", depth, realType, ps.Primitives[realType])
 			prim := ps.Primitives[realType][r.Intn(len(ps.Primitives[realType]))]
-      fmt.Printf("selected %s \n", prim)
+			fmt.Printf("selected %s \n", prim)
 			if prim == nil {
 				panic("No primitive with type available")
 			}
 			expr = append(expr, prim)
 			for i := len(prim.argTypes) - 1; i >= 0; i-- {
-        fmt.Printf("Adding item to stack depth %d argtype: %d\n", depth+1, prim.argTypes[i])
+				fmt.Printf("Adding item to stack depth %d argtype: %d\n", depth+1, prim.argTypes[i])
 				stack = append(stack, StackItem{i: depth + 1, t: prim.argTypes[i]})
 			}
 		}
@@ -373,27 +367,3 @@ func MutUniform(ind *PrimitiveTree, expr func(*PrimitiveSet, reflect.Kind) []Nod
 	newNodes := expr(ps, type_)
 	ind.stack = ReplaceInRange(ind.stack, sliceStart, sliceEnd, newNodes...)
 }
-
-
-prim2(
-  prim2(
-    prim1(
-      prim1(4, "hello"), 
-      prim2("hello", 4)
-    ), 
-    prim2(
-      prim2("hello", 4), 
-      prim2("hello", 4)
-    )
-  ), 
-  prim2(
-    prim2(
-      prim1(4, "hello"), 
-      prim1(4, "hello")
-    ), 
-    prim2(
-      prim2("hello", 4), 
-      prim2("hello", 4)
-    )
-  )
-)
