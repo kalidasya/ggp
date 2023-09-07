@@ -23,6 +23,13 @@ var GenFull GenCondition = func(height int, depth int, _min int, _max int, _ps *
 	return depth == height
 }
 
+var GenHalfAndHalf GenCondition = func(height int, depth int, min int, max int, ps *PrimitiveSet) bool {
+	if rand.Intn(2) == 0 {
+		return GenGrow(height, depth, min, max, ps)
+	}
+	return GenFull(height, depth, min, max, ps)
+}
+
 // ------- Primitive Tree
 
 type NodeString struct {
@@ -261,11 +268,6 @@ type PrimitiveSet struct {
 func (ps *PrimitiveSet) AddPrimitive(p *Primitive) {
 	prims := ps.Primitives[p.retType]
 	ps.Primitives[p.Ret()] = append(prims, p)
-
-	// for _, argType := range p.argTypes {
-	// 	val := ps.Primitives[argType]
-	// 	ps.Primitives[argType] = append(val, p)
-	// }
 }
 
 func (ps *PrimitiveSet) AddTerminal(t *Terminal) {
@@ -296,7 +298,6 @@ type StackItem struct {
 func GenerateTree(ps *PrimitiveSet, min int, max int, condition GenCondition, type_ reflect.Kind, r *rand.Rand) *PrimitiveTree {
 	var expr []Node
 	height := r.Intn(max-min) + min
-	fmt.Printf("Generated height: %d\n", height)
 
 	stack := []StackItem{
 		{i: 0, t: type_},
@@ -314,15 +315,12 @@ func GenerateTree(ps *PrimitiveSet, min int, max int, condition GenCondition, ty
 			}
 			expr = append(expr, term)
 		} else {
-			fmt.Printf("Popped from stack: %d type: %d, prim list %v\n", depth, realType, ps.Primitives[realType])
 			prim := ps.Primitives[realType][r.Intn(len(ps.Primitives[realType]))]
-			fmt.Printf("selected %s \n", prim)
 			if prim == nil {
 				panic("No primitive with type available")
 			}
 			expr = append(expr, prim)
 			for i := len(prim.argTypes) - 1; i >= 0; i-- {
-				fmt.Printf("Adding item to stack depth %d argtype: %d\n", depth+1, prim.argTypes[i])
 				stack = append(stack, StackItem{i: depth + 1, t: prim.argTypes[i]})
 			}
 		}
