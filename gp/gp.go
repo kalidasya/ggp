@@ -328,9 +328,26 @@ func GenerateTree(ps *PrimitiveSet, min int, max int, condition GenCondition, ty
 	return NewPrimitiveTree(expr)
 }
 
-func CXOnePoint(ind1 *PrimitiveTree, ind2 *PrimitiveTree, r *rand.Rand) {
+type CrossOver func(*PrimitiveTree, *PrimitiveTree, *rand.Rand, int) (*PrimitiveTree, *PrimitiveTree)
+// type CrossOverLimiter func(CrossOver, any) CrossOver
+
+func StaticCrossOverLimiter(crossover CrossOver, limit int) CrossOver {
+  return func(ind1 *PrimitiveTree, ind2 *PrimitiveTree, r *rand.Rand, bias int) (*PrimitiveTree, *PrimitiveTree) {
+    child1, child2 := crossover(ind1, ind2, r, bias)
+    parents := []*PrimitiveTree{ind1, ind2}
+    if len(child1.Nodes()) > limit {
+      child1 = parents[rand.Intn(len(parents))]
+    }
+    if len(child2.Nodes()) > limit {
+      child2 = parents[rand.Intn(len(parents))]
+    }
+    return child1, child2
+  }
+}
+
+func CXOnePoint(ind1 *PrimitiveTree, ind2 *PrimitiveTree, r *rand.Rand, _ int) (*PrimitiveTree, *PrimitiveTree) {
 	if len(ind1.stack) < 2 || len(ind2.stack) < 2 {
-		return
+		return nil, nil
 	}
 
 	types1 := make(map[reflect.Kind][]int)
@@ -352,16 +369,46 @@ func CXOnePoint(ind1 *PrimitiveTree, ind2 *PrimitiveTree, r *rand.Rand) {
 		slice1Begin, slice1End := ind1.SearchSubtree(index1)
 		slice2Begin, slice2End := ind2.SearchSubtree(index2)
 
-		temp_stack := ReplaceInRange(ind1.stack, slice1Begin, slice1End, ind2.stack[slice2Begin:slice2End]...)
-		ind2.stack = ReplaceInRange(ind2.stack, slice2Begin, slice2End, ind1.stack[slice1Begin:slice1End]...)
-		ind1.stack = temp_stack
+		child1Stack := ReplaceInRange(ind1.stack, slice1Begin, slice1End, ind2.stack[slice2Begin:slice2End]...)
+		child2Stack := ReplaceInRange(ind2.stack, slice2Begin, slice2End, ind1.stack[slice1Begin:slice1End]...)
+		return NewPrimitiveTree(child1Stack), NewPrimitiveTree(child2Stack)
 	}
+  return nil, nil
 }
 
-func MutUniform(ind *PrimitiveTree, expr func(*PrimitiveSet, reflect.Kind) []Node, ps *PrimitiveSet, r *rand.Rand) {
-	index := r.Intn(len(ind.stack))
+// type Mutator func (*PrimitiveTree) *PrimitiveTree
+type Mutator func (*PrimitiveTree) *PrimitiveTree
+
+type MutatorLimiter func(Mutator) Mutator
+
+func StaticMutatorLimiter(mutator Mutator, limit int) Mutator {
+  return func(ind *PrimitiveTree) *PrimitiveTree {
+    res := mutator(ind)
+    if len(res.Nodes()) > limit {
+      res = ind
+    }
+    return res
+  } 
+}
+
+type UniformMutator struct {
+  expr func(*PrimitiveSet, reflect.Kind) []Node
+  ps *PrimitiveSet
+  r *rand.Rand
+}
+
+func NewUniformMutator(ps *PrimitiveSet, expr func(*PrimitiveSet, reflect.Kind) []Node, r *rand.Rand) *UniformMutator {
+  return &UniformMutator {
+    expr: expr,
+    r: r,
+    ps: ps,
+  }
+}
+
+func (m *UniformMutator) Mutate(ind *PrimitiveTree) *PrimitiveTree {
+	index := m.r.Intn(len(ind.stack))
 	sliceStart, sliceEnd := ind.SearchSubtree(index)
 	type_ := ind.stack[index].Ret()
-	newNodes := expr(ps, type_)
-	ind.stack = ReplaceInRange(ind.stack, sliceStart, sliceEnd, newNodes...)
+	newNodes := m.expr(m.ps, type_)
+	return NewPrimitiveTree(ReplaceInRange(ind.stack, sliceStart, sliceEnd, newNodes...))
 }

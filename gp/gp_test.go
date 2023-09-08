@@ -115,15 +115,16 @@ func TestGenerateTree(t *testing.T) {
 	assert.NotPanics(t, func() { tree2.Compile() })
 }
 
-func TestMutUniform(t *testing.T) {
+func TestUniformMutator(t *testing.T) {
 	r := rand.New(rand.NewSource(4853))
 	tree := NewPrimitiveTree(getValidNodes())
 	ps := getPrimitiveSet()
 	origLen := len(tree.Nodes())
 	beforeMut := fmt.Sprintf("%s", tree)
-	MutUniform(tree, func(ps *PrimitiveSet, type_ reflect.Kind) []Node {
+  uniformMutator := NewUniformMutator(ps, func(ps *PrimitiveSet, type_ reflect.Kind) []Node {
 		return GenerateTree(ps, 1, 2, GenGrow, type_, r).Nodes()
-	}, ps, r)
+	}, r)
+	tree = uniformMutator.Mutate(tree)
 	assert.Len(t, tree.Nodes(), origLen+2) // adds 3 nodes and removes one
 	assert.NotEqual(t, beforeMut, fmt.Sprintf("%s", tree))
 	assert.Equal(t, `prim1(4, prim2(prim2("hello", 4), 4))`, fmt.Sprintf("%s", tree))
@@ -140,9 +141,34 @@ func TestCXOnePointestCXOnePoint(t *testing.T) {
 	assert.NotPanics(t, func() { tree2.Compile() })
 
 	r := rand.New(rand.NewSource(715))
-	CXOnePoint(tree1, tree2, r) // node at index 3 in tree1 will be replaced with node index 4:7 in tree2
+	tree1, tree2 = CXOnePoint(tree1, tree2, r, 0) // node at index 3 in tree1 will be replaced with node index 4:7 in tree2
 	assert.Equal(t, []Node{prim1, prim1, prim1, prim1, term1, term2, term2, prim2, term2, term1, prim2, term2, prim1, term1, term2}, tree1.stack)
 	assert.Equal(t, []Node{prim2, prim2, term2, term1, term1}, tree2.stack)
 	assert.NotPanics(t, func() { tree1.Compile() })
 	assert.NotPanics(t, func() { tree2.Compile() })
+}
+
+func TestStaticCrossOverLimiter(t *testing.T) {
+  ps := getPrimitiveSet()
+  r := rand.New(rand.NewSource(444))
+  tree1 := GenerateTree(ps, 3, 4, GenFull, ps.RetType, r)
+  tree2 := GenerateTree(ps, 3, 4, GenFull, ps.RetType, r)
+  for i := 0; i < 10; i++ {
+    tree1, tree2 = StaticCrossOverLimiter(CXOnePoint, 17)(tree1, tree2, r, 0)
+    assert.Less(t, len(tree1.Nodes()), 18)
+    assert.Less(t, len(tree2.Nodes()), 18)
+  }
+}
+
+func TestStaticMutatorLimiter(t *testing.T) {
+  ps := getPrimitiveSet()
+  r := rand.New(rand.NewSource(444))
+  tree := GenerateTree(ps, 3, 4, GenFull, ps.RetType, r)
+  uniformMutator := NewUniformMutator(ps, func(ps *PrimitiveSet, type_ reflect.Kind) []Node {
+		return GenerateTree(ps, 2, 3, GenGrow, type_, r).Nodes()
+	}, r)
+  for i := 0; i < 10; i++ {
+    tree = StaticMutatorLimiter(uniformMutator.Mutate, 17)(tree)
+    assert.Less(t, len(tree.Nodes()), 18)
+  }
 }

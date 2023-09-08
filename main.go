@@ -53,7 +53,7 @@ func main() {
 		fmt.Println("---------------------------------------------")
 		fmt.Println(ret2)
 		gp.PrintNodes(ret2.Nodes())
-		gp.CXOnePoint(ret, ret2, r)
+		ret, ret2 = gp.CXOnePoint(ret, ret2, r, 0)
 		fmt.Printf("After CX before mut %d:\n", len(ret.Nodes()))
 		fmt.Println(ret)
 		gp.PrintNodes(ret.Nodes())
@@ -61,9 +61,11 @@ func main() {
 		fmt.Println(ret2)
 		gp.PrintNodes(ret2.Nodes())
 
-		gp.MutUniform(ret, func(ps *gp.PrimitiveSet, type_ reflect.Kind) []gp.Node {
+    uniformMutator := gp.NewUniformMutator(ps, func(ps *gp.PrimitiveSet, type_ reflect.Kind) []gp.Node {
 			return gp.GenerateTree(ps, 0, 2, gp.GenGrow, type_, r).Nodes()
-		}, ps, r)
+		}, r)
+    
+		uniformMutator.Mutate(ret)
 		fmt.Printf("After mut %d:\n", len(ret.Nodes()))
 		fmt.Println(ret)
 		gp.PrintNodes(ret.Nodes())
