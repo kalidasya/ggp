@@ -391,6 +391,8 @@ func StaticMutatorLimiter(mutator Mutator, limit int) Mutator {
   } 
 }
 
+//todo mutNodeReplacement mutEphemeral mutInsert mutShrink
+
 type UniformMutator struct {
   expr func(*PrimitiveSet, reflect.Kind) []Node
   ps *PrimitiveSet
