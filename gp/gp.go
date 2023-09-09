@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"golang.org/x/exp/maps"
+  "golang.org/x/exp/slices"
 	"math/rand"
 	"reflect"
 	"strings"
@@ -37,7 +38,7 @@ type NodeString struct {
 	str  []string
 }
 
-type NodeInterace struct {
+type NodeInterface struct {
 	node Node
 	args []interface{}
 }
@@ -51,14 +52,11 @@ type PrimitiveTree struct {
 func (pt *PrimitiveTree) String() string {
 	var stack []NodeString
 	for _, node := range pt.stack {
-		// fmt.Printf("!!pt.stack len: %d stack len: %d c: %d\n", len(pt.stack), len(stack), i)
 		stack = append(stack, NodeString{node, []string{}})
-		// fmt.Printf("!!Node: %s %d==%d\n", node.Name(), len(stack[len(stack)-1].str), stack[len(stack)-1].node.Arity())
 		for len(stack[len(stack)-1].str) == stack[len(stack)-1].node.Arity() {
 			var n NodeString
 			stack, n = Pop(stack)
 			s := n.node.Str(n.str)
-			// fmt.Printf("!!current str: %s\n", s)
 			if len(stack) == 0 {
 				return s
 			}
@@ -68,16 +66,26 @@ func (pt *PrimitiveTree) String() string {
 	return "."
 }
 
-func (pt *PrimitiveTree) Compile() interface{} {
-	var stack []NodeInterace
+func (pt *PrimitiveTree) Compile(arguments ...interface{}) interface{} {
+	var stack []NodeInterface
+  argumentsMap := make(map[string]interface{})
+  for i, a := range arguments {
+    argumentsMap[fmt.Sprintf("__ARG__%d", i)] = a
+  }
 	for _, node := range pt.stack {
-		stack = append(stack, NodeInterace{node, []interface{}{}})
-		// fmt.Printf("Node: %s %d==%d\n", node.Name(), len(stack[len(stack)-1].args), stack[len(stack)-1].node.Arity())
+		stack = append(stack, NodeInterface{node, []interface{}{}})
 		for len(stack[len(stack)-1].args) == stack[len(stack)-1].node.Arity() {
-			var n NodeInterace
+			var n NodeInterface
+      var res interface{}
+      var err error
 			stack, n = Pop(stack)
-			// fmt.Printf("last stack %s %v\n", n.node.Name(), n.args)
-			res, err := n.node.Eval(n.args)
+      // here we pass the received values for each argument terminal
+      if ind := slices.Index(maps.Keys(argumentsMap), n.node.Name()); ind >-1 {
+        // argument terminals are always receiving a single value but the interface requires a list
+        res, err = n.node.Eval([]interface{}{argumentsMap[n.node.Name()]})
+      } else {
+  			res, err = n.node.Eval(n.args)
+      }
 			if err != nil {
 				fmt.Println(err.Error())
 				panic("eval error")
@@ -143,6 +151,7 @@ type Terminal struct {
 	name    string
 	retType reflect.Kind
 	value   interface{}
+  argument bool
 }
 
 func (t *Terminal) Arity() int {
@@ -153,11 +162,20 @@ func (t *Terminal) Name() string {
 	return t.name
 }
 
-func (t *Terminal) Eval(_ []interface{}) (interface{}, error) {
+func (t *Terminal) Eval(argValues []interface{}) (interface{}, error) {
+  if t.argument {
+    if len(argValues) != 1 {
+      return nil, errors.New("argument terminal can only have one return value")
+    }
+    return argValues[0], nil
+  }
 	return t.value, nil
 }
 
 func (t *Terminal) Str(_ []string) string {
+  if t.argument {
+    return t.Name()
+  }
 	switch t.retType {
 	case reflect.String:
 		return fmt.Sprintf(`"%s"`, t.value)
@@ -281,13 +299,24 @@ func (ps *PrimitiveSet) TerminalRatio() float32 {
 
 // TODO input types are ignored, no symbolic terminal
 func NewPrimitiveSet(inTypes []reflect.Kind, retType reflect.Kind) *PrimitiveSet {
-	return &PrimitiveSet{
+  ps := &PrimitiveSet{
 		Primitives: make(map[reflect.Kind][]*Primitive),
 		Terminals:  make(map[reflect.Kind][]*Terminal),
 		RetType:    retType,
 		InTypes:    inTypes,
 		Arity:      len(inTypes),
 	}
+  
+  for i, r := range inTypes {
+    argName := fmt.Sprintf("__ARG__%d", i)
+    inTerminal := &Terminal{
+      name: argName,
+      retType: r,
+      argument: true,
+    }
+    ps.AddTerminal(inTerminal)
+  }
+	return ps
 }
 
 type StackItem struct {

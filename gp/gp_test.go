@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-
+  
 	"github.com/stretchr/testify/assert"
 )
 
@@ -113,6 +113,27 @@ func TestGenerateTree(t *testing.T) {
 	assert.LessOrEqual(t, tree2.Height(), 5)
 	assert.NotPanics(t, func() { tree1.Compile() })
 	assert.NotPanics(t, func() { tree2.Compile() })
+}
+
+func TestCompileWithArguments(t *testing.T) {
+  r := rand.New(rand.NewSource(1001))
+  
+  ps := NewPrimitiveSet([]reflect.Kind{reflect.Int, reflect.String, reflect.Int}, reflect.Int)
+	ps.AddPrimitive(prim1)
+	ps.AddPrimitive(prim2)
+
+  assert.Equal(t, 2, len(ps.Terminals[reflect.Int]))
+  assert.Equal(t, 1, len(ps.Terminals[reflect.String]))
+  tree := GenerateTree(ps, 2, 3, GenFull, ps.RetType, r)
+  assert.NotPanics(t, func() {tree.Compile(4, "aloha", 2)})
+  assert.Equal(t, 0, tree.Compile(1, "", 1))
+  // panic if not enough argument
+  assert.Panics(t, func() {tree.Compile(4, "aloha")})
+  // panic if type mismtach
+  assert.Panics(t, func() {tree.Compile(true, "aloha", 1)})
+  // no panic if extra arguments
+  assert.NotPanics(t, func() {tree.Compile(1, "aloha", 1, 12)})
+  
 }
 
 func TestUniformMutator(t *testing.T) {
