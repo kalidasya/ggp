@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"golang.org/x/exp/maps"
-  "golang.org/x/exp/slices"
+	"golang.org/x/exp/slices"
 	"math/rand"
 	"reflect"
 	"strings"
@@ -33,16 +33,6 @@ var GenHalfAndHalf GenCondition = func(height int, depth int, min int, max int, 
 
 // ------- Primitive Tree
 
-type NodeString struct {
-	node Node
-	str  []string
-}
-
-type NodeInterface struct {
-	node Node
-	args []interface{}
-}
-
 type PrimitiveTree struct {
 	stack []Node // either primitive or terminal
 }
@@ -50,11 +40,11 @@ type PrimitiveTree struct {
 // somehow the last node is not a terminal, something is wrong with the tree growing
 
 func (pt *PrimitiveTree) String() string {
-	var stack []NodeString
+	var stack []nodeString
 	for _, node := range pt.stack {
-		stack = append(stack, NodeString{node, []string{}})
+		stack = append(stack, nodeString{node, []string{}})
 		for len(stack[len(stack)-1].str) == stack[len(stack)-1].node.Arity() {
-			var n NodeString
+			var n nodeString
 			stack, n = Pop(stack)
 			s := n.node.Str(n.str)
 			if len(stack) == 0 {
@@ -67,25 +57,25 @@ func (pt *PrimitiveTree) String() string {
 }
 
 func (pt *PrimitiveTree) Compile(arguments ...interface{}) interface{} {
-	var stack []NodeInterface
-  argumentsMap := make(map[string]interface{})
-  for i, a := range arguments {
-    argumentsMap[fmt.Sprintf("__ARG__%d", i)] = a
-  }
+	var stack []nodeInterface
+	argumentsMap := make(map[string]interface{})
+	for i, a := range arguments {
+		argumentsMap[fmt.Sprintf("__ARG__%d", i)] = a
+	}
 	for _, node := range pt.stack {
-		stack = append(stack, NodeInterface{node, []interface{}{}})
+		stack = append(stack, nodeInterface{node, []interface{}{}})
 		for len(stack[len(stack)-1].args) == stack[len(stack)-1].node.Arity() {
-			var n NodeInterface
-      var res interface{}
-      var err error
+			var n nodeInterface
+			var res interface{}
+			var err error
 			stack, n = Pop(stack)
-      // here we pass the received values for each argument terminal
-      if ind := slices.Index(maps.Keys(argumentsMap), n.node.Name()); ind >-1 {
-        // argument terminals are always receiving a single value but the interface requires a list
-        res, err = n.node.Eval([]interface{}{argumentsMap[n.node.Name()]})
-      } else {
-  			res, err = n.node.Eval(n.args)
-      }
+			// here we pass the received values for each argument terminal
+			if ind := slices.Index(maps.Keys(argumentsMap), n.node.Name()); ind > -1 {
+				// argument terminals are always receiving a single value but the interface requires a list
+				res, err = n.node.Eval([]interface{}{argumentsMap[n.node.Name()]})
+			} else {
+				res, err = n.node.Eval(n.args)
+			}
 			if err != nil {
 				fmt.Println(err.Error())
 				panic("eval error")
@@ -148,10 +138,10 @@ type Node interface {
 }
 
 type Terminal struct {
-	name    string
-	retType reflect.Kind
-	value   interface{}
-  argument bool
+	name     string
+	retType  reflect.Kind
+	value    interface{}
+	argument bool
 }
 
 func (t *Terminal) Arity() int {
@@ -163,19 +153,19 @@ func (t *Terminal) Name() string {
 }
 
 func (t *Terminal) Eval(argValues []interface{}) (interface{}, error) {
-  if t.argument {
-    if len(argValues) != 1 {
-      return nil, errors.New("argument terminal can only have one return value")
-    }
-    return argValues[0], nil
-  }
+	if t.argument {
+		if len(argValues) != 1 {
+			return nil, errors.New("argument terminal can only have one return value")
+		}
+		return argValues[0], nil
+	}
 	return t.value, nil
 }
 
 func (t *Terminal) Str(_ []string) string {
-  if t.argument {
-    return t.Name()
-  }
+	if t.argument {
+		return t.Name()
+	}
 	switch t.retType {
 	case reflect.String:
 		return fmt.Sprintf(`"%s"`, t.value)
@@ -273,6 +263,8 @@ func NewPrimitive(name string, f PrimitiveFunc, argTypes []reflect.Kind, retType
 	}
 }
 
+// todo create Ephemeral Node types (evaulated when the tree is generated)
+
 // -------------- PrimitiveSet
 
 type PrimitiveSet struct {
@@ -280,7 +272,7 @@ type PrimitiveSet struct {
 	Terminals  map[reflect.Kind][]*Terminal
 	InTypes    []reflect.Kind
 	RetType    reflect.Kind
-	Arity      int
+	arity      int
 }
 
 func (ps *PrimitiveSet) AddPrimitive(p *Primitive) {
@@ -299,41 +291,36 @@ func (ps *PrimitiveSet) TerminalRatio() float32 {
 
 // TODO input types are ignored, no symbolic terminal
 func NewPrimitiveSet(inTypes []reflect.Kind, retType reflect.Kind) *PrimitiveSet {
-  ps := &PrimitiveSet{
+	ps := &PrimitiveSet{
 		Primitives: make(map[reflect.Kind][]*Primitive),
 		Terminals:  make(map[reflect.Kind][]*Terminal),
 		RetType:    retType,
 		InTypes:    inTypes,
-		Arity:      len(inTypes),
+		arity:      len(inTypes),
 	}
-  
-  for i, r := range inTypes {
-    argName := fmt.Sprintf("__ARG__%d", i)
-    inTerminal := &Terminal{
-      name: argName,
-      retType: r,
-      argument: true,
-    }
-    ps.AddTerminal(inTerminal)
-  }
-	return ps
-}
 
-type StackItem struct {
-	i int
-	t reflect.Kind
+	for i, r := range inTypes {
+		argName := fmt.Sprintf("__ARG__%d", i)
+		inTerminal := &Terminal{
+			name:     argName,
+			retType:  r,
+			argument: true,
+		}
+		ps.AddTerminal(inTerminal)
+	}
+	return ps
 }
 
 func GenerateTree(ps *PrimitiveSet, min int, max int, condition GenCondition, type_ reflect.Kind, r *rand.Rand) *PrimitiveTree {
 	var expr []Node
 	height := r.Intn(max-min) + min
 
-	stack := []StackItem{
+	stack := []stackItem{
 		{i: 0, t: type_},
 	}
 
 	for len(stack) != 0 {
-		var item StackItem
+		var item stackItem
 		stack, item = Pop(stack)
 		depth, realType := item.i, item.t
 		// realType := item.t
@@ -350,7 +337,7 @@ func GenerateTree(ps *PrimitiveSet, min int, max int, condition GenCondition, ty
 			}
 			expr = append(expr, prim)
 			for i := len(prim.argTypes) - 1; i >= 0; i-- {
-				stack = append(stack, StackItem{i: depth + 1, t: prim.argTypes[i]})
+				stack = append(stack, stackItem{i: depth + 1, t: prim.argTypes[i]})
 			}
 		}
 	}
@@ -358,20 +345,21 @@ func GenerateTree(ps *PrimitiveSet, min int, max int, condition GenCondition, ty
 }
 
 type CrossOver func(*PrimitiveTree, *PrimitiveTree, *rand.Rand, int) (*PrimitiveTree, *PrimitiveTree)
+
 // type CrossOverLimiter func(CrossOver, any) CrossOver
 
 func StaticCrossOverLimiter(crossover CrossOver, limit int) CrossOver {
-  return func(ind1 *PrimitiveTree, ind2 *PrimitiveTree, r *rand.Rand, bias int) (*PrimitiveTree, *PrimitiveTree) {
-    child1, child2 := crossover(ind1, ind2, r, bias)
-    parents := []*PrimitiveTree{ind1, ind2}
-    if len(child1.Nodes()) > limit {
-      child1 = parents[rand.Intn(len(parents))]
-    }
-    if len(child2.Nodes()) > limit {
-      child2 = parents[rand.Intn(len(parents))]
-    }
-    return child1, child2
-  }
+	return func(ind1 *PrimitiveTree, ind2 *PrimitiveTree, r *rand.Rand, bias int) (*PrimitiveTree, *PrimitiveTree) {
+		child1, child2 := crossover(ind1, ind2, r, bias)
+		parents := []*PrimitiveTree{ind1, ind2}
+		if len(child1.Nodes()) > limit {
+			child1 = parents[rand.Intn(len(parents))]
+		}
+		if len(child2.Nodes()) > limit {
+			child2 = parents[rand.Intn(len(parents))]
+		}
+		return child1, child2
+	}
 }
 
 func CXOnePoint(ind1 *PrimitiveTree, ind2 *PrimitiveTree, r *rand.Rand, _ int) (*PrimitiveTree, *PrimitiveTree) {
@@ -402,38 +390,38 @@ func CXOnePoint(ind1 *PrimitiveTree, ind2 *PrimitiveTree, r *rand.Rand, _ int) (
 		child2Stack := ReplaceInRange(ind2.stack, slice2Begin, slice2End, ind1.stack[slice1Begin:slice1End]...)
 		return NewPrimitiveTree(child1Stack), NewPrimitiveTree(child2Stack)
 	}
-  return nil, nil
+	return nil, nil
 }
 
 // type Mutator func (*PrimitiveTree) *PrimitiveTree
-type Mutator func (*PrimitiveTree) *PrimitiveTree
+type Mutator func(*PrimitiveTree) *PrimitiveTree
 
 type MutatorLimiter func(Mutator) Mutator
 
 func StaticMutatorLimiter(mutator Mutator, limit int) Mutator {
-  return func(ind *PrimitiveTree) *PrimitiveTree {
-    res := mutator(ind)
-    if len(res.Nodes()) > limit {
-      res = ind
-    }
-    return res
-  } 
+	return func(ind *PrimitiveTree) *PrimitiveTree {
+		res := mutator(ind)
+		if len(res.Nodes()) > limit {
+			res = ind
+		}
+		return res
+	}
 }
 
 //todo mutNodeReplacement mutEphemeral mutInsert mutShrink
 
 type UniformMutator struct {
-  expr func(*PrimitiveSet, reflect.Kind) []Node
-  ps *PrimitiveSet
-  r *rand.Rand
+	expr func(*PrimitiveSet, reflect.Kind) []Node
+	ps   *PrimitiveSet
+	r    *rand.Rand
 }
 
 func NewUniformMutator(ps *PrimitiveSet, expr func(*PrimitiveSet, reflect.Kind) []Node, r *rand.Rand) *UniformMutator {
-  return &UniformMutator {
-    expr: expr,
-    r: r,
-    ps: ps,
-  }
+	return &UniformMutator{
+		expr: expr,
+		r:    r,
+		ps:   ps,
+	}
 }
 
 func (m *UniformMutator) Mutate(ind *PrimitiveTree) *PrimitiveTree {

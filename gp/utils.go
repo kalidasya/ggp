@@ -2,11 +2,27 @@ package gp
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 
 	"golang.org/x/exp/constraints"
 	"golang.org/x/exp/slices"
 )
+
+type nodeString struct {
+	node Node
+	str  []string
+}
+
+type nodeInterface struct {
+	node Node
+	args []interface{}
+}
+
+type stackItem struct {
+	i int
+	t reflect.Kind
+}
 
 func Max(a int, b int) int {
 	if a >= b {
