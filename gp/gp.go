@@ -78,7 +78,7 @@ func (pt *PrimitiveTree) Compile(arguments ...interface{}) interface{} {
 			}
 			if err != nil {
 				fmt.Println(err.Error())
-				panic("eval error")
+				panic(fmt.Sprintf("eval error for %s", n.node.Name()))
 			}
 			if len(stack) == 0 {
 				return res
@@ -159,7 +159,12 @@ func (t *Terminal) Eval(argValues []interface{}) (interface{}, error) {
 		}
 		return argValues[0], nil
 	}
-	return t.value, nil
+	switch t.value.(type) {
+	case func():
+		return t.value.(func() interface{})(), nil
+	default:
+		return t.value, nil
+	}
 }
 
 func (t *Terminal) Str(_ []string) string {
@@ -232,7 +237,7 @@ func (p *Primitive) Eval(args []interface{}) (interface{}, error) {
 	}
 	for i, arg := range args {
 		if reflect.TypeOf(arg).Kind() != p.argTypes[i] {
-			return nil, errors.New(fmt.Sprintf("invalid type for %dth argument", i+1))
+			return nil, errors.New(fmt.Sprintf("%s invalid type for %dth argument (%v) expected %d got %d", p.name, i+1, arg, reflect.TypeOf(arg).Kind(), p.argTypes[i]))
 		}
 
 	}
@@ -331,6 +336,7 @@ func GenerateTree(ps *PrimitiveSet, min int, max int, condition GenCondition, ty
 			}
 			expr = append(expr, term)
 		} else {
+			fmt.Printf("prim length %d for %d\n", len(ps.Primitives[realType]), realType)
 			prim := ps.Primitives[realType][r.Intn(len(ps.Primitives[realType]))]
 			if prim == nil {
 				panic("No primitive with type available")
@@ -431,3 +437,113 @@ func (m *UniformMutator) Mutate(ind *PrimitiveTree) *PrimitiveTree {
 	newNodes := m.expr(m.ps, type_)
 	return NewPrimitiveTree(ReplaceInRange(ind.stack, sliceStart, sliceEnd, newNodes...))
 }
+
+type Fitness struct {
+	values  []int
+	weights []int
+	wvalues []int
+}
+
+func NewFiness(weights []int, values []int) (*Fitness, error) {
+	if values != nil && len(weights) != len(values) {
+		return nil, errors.New("values and weights must have the same size")
+	}
+	return &Fitness{
+		weights: weights,
+		values:  values,
+	}, nil
+}
+
+func (f *Fitness) GetValues() ([]float32, error) {
+	if len(f.weights) != len(f.values) {
+		return []float32{}, errors.New("values and weights must have the same size")
+	}
+	ret := []float32{}
+	for i, v := range f.values {
+		ret = append(ret, float32(v)/float32(f.weights[i]))
+	}
+	return ret, nil
+}
+
+func (f *Fitness) SetValues(values []int) error {
+	if len(f.weights) != len(values) {
+		return errors.New("values and weights must have the same size")
+	}
+	for i, v := range values {
+		f.wvalues = append(f.wvalues, v*f.weights[i])
+	}
+	return nil
+}
+
+func (f *Fitness) DelValues() {
+	f.wvalues = []int{}
+}
+
+func (f *Fitness) Dominate(other *Fitness) bool {
+	// we need to iterate till the end of the sorter list
+	iterLimit := slices.Min([]int{len(f.wvalues), len(other.wvalues)})
+
+	notEqual := false
+	for i := 0; i < iterLimit; i++ {
+		if f.wvalues[i] > other.wvalues[i] {
+			notEqual = true
+		} else if f.wvalues[i] < other.wvalues[i] {
+			return false
+		}
+	}
+	return notEqual
+}
+
+func (f *Fitness) Valid() bool {
+	return len(f.wvalues) != 0
+}
+
+func (f *Fitness) LessThan(other *Fitness) bool {
+	iterLimit := slices.Min([]int{len(f.wvalues), len(other.wvalues)})
+	for i := 0; i < iterLimit; i++ {
+		if f.wvalues[i] >= other.wvalues[i] {
+			return false
+		}
+	}
+	// shorter list considered less
+	if len(f.wvalues) >= len(other.wvalues) {
+		return false
+	}
+	return true
+}
+
+func (f *Fitness) LessOrEqual(other *Fitness) bool {
+	iterLimit := slices.Min([]int{len(f.wvalues), len(other.wvalues)})
+	for i := 0; i < iterLimit; i++ {
+		if f.wvalues[i] > other.wvalues[i] {
+			return false
+		}
+	}
+	// shorter list considered less
+	if len(f.wvalues) > len(other.wvalues) {
+		return false
+	}
+	return true
+}
+
+func (f *Fitness) GreaterOrEqual(other *Fitness) bool {
+	return !f.LessThan(other)
+}
+
+func (f *Fitness) GreaterThan(other *Fitness) bool {
+	return !f.LessOrEqual(other)
+}
+
+func (f *Fitness) Equals(other *Fitness) bool {
+	if len(f.wvalues) != len(other.wvalues) {
+		return false
+	}
+	for i := 0; i < len(f.wvalues); i++ {
+		if f.wvalues[i] != other.wvalues[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// TODO constrained fitness
