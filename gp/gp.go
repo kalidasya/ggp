@@ -236,8 +236,8 @@ func (p *Primitive) Eval(args []interface{}) (interface{}, error) {
 		return nil, errors.New("too many arguments")
 	}
 	for i, arg := range args {
-		if reflect.TypeOf(arg).Kind() != p.argTypes[i] {
-			return nil, errors.New(fmt.Sprintf("%s invalid type for %dth argument (%v) expected %d got %d", p.name, i+1, arg, reflect.TypeOf(arg).Kind(), p.argTypes[i]))
+		if reflect.TypeOf(arg).Kind() != p.argTypes[i] && p.argTypes[i] != reflect.Interface { // lets handle interface as any
+			return nil, errors.New(fmt.Sprintf("%s invalid type for %dth argument (%v) expected %d got %d", p.name, i+1, arg, p.argTypes[i], reflect.TypeOf(arg).Kind()))
 		}
 
 	}

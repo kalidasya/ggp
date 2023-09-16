@@ -1,5 +1,7 @@
 package main
 
+import "main/examples/ant"
+
 // import (
 // 	"fmt"
 // 	"main/gp"
@@ -9,7 +11,7 @@ package main
 // )
 
 func main() {
-	antMain()
+	ant.Main()
 }
 
 // var fone, ftwo gp.PrimitiveFunc
