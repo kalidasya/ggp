@@ -10,10 +10,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var func1 PrimitiveFunc = func(a ...interface{}) interface{} {
+var func1 PrimitiveFunc = func(a ...PrimitiveArgs) PrimitiveArgs {
 	return len(a[1].(string)) * a[0].(int)
 }
-var func2 PrimitiveFunc = func(a ...interface{}) interface{} {
+var func2 PrimitiveFunc = func(a ...PrimitiveArgs) PrimitiveArgs {
 	return strings.Repeat(a[0].(string), a[1].(int))
 }
 

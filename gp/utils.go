@@ -16,7 +16,7 @@ type nodeString struct {
 
 type nodeInterface struct {
 	node Node
-	args []interface{}
+	args []PrimitiveArgs
 }
 
 type stackItem struct {
