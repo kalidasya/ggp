@@ -16,6 +16,11 @@ type PrimitiveArgs interface {
 	interface{} | func(...interface{}) interface{}
 }
 
+type Individual interface {
+	Fitness() *Fitness
+	Tree() *PrimitiveTree
+}
+
 type PrimitiveFunc func(...PrimitiveArgs) PrimitiveArgs
 
 type GenCondition func(int, int, int, int, *PrimitiveSet) bool
@@ -92,6 +97,10 @@ func (pt *PrimitiveTree) Compile(arguments ...interface{}) interface{} {
 		}
 	}
 	return nil
+}
+
+func (pt *PrimitiveTree) ReplaceNodes(nodes []Node) {
+	pt.stack = nodes
 }
 
 func (pt *PrimitiveTree) Root() interface{} {
@@ -382,14 +391,14 @@ func GenerateTree(ps *PrimitiveSet, min int, max int, condition GenCondition, ty
 	return NewPrimitiveTree(expr)
 }
 
-type CrossOver func(*PrimitiveTree, *PrimitiveTree, *rand.Rand, int) (*PrimitiveTree, *PrimitiveTree)
+type CrossOver func(PrimitiveTree, PrimitiveTree, *rand.Rand, int) (PrimitiveTree, PrimitiveTree)
 
 // type CrossOverLimiter func(CrossOver, any) CrossOver
 
 func StaticCrossOverLimiter(crossover CrossOver, limit int) CrossOver {
-	return func(ind1 *PrimitiveTree, ind2 *PrimitiveTree, r *rand.Rand, bias int) (*PrimitiveTree, *PrimitiveTree) {
+	return func(ind1 PrimitiveTree, ind2 PrimitiveTree, r *rand.Rand, bias int) (PrimitiveTree, PrimitiveTree) {
 		child1, child2 := crossover(ind1, ind2, r, bias)
-		parents := []*PrimitiveTree{ind1, ind2}
+		parents := []PrimitiveTree{ind1, ind2}
 		if len(child1.Nodes()) > limit {
 			child1 = parents[rand.Intn(len(parents))]
 		}
@@ -475,7 +484,7 @@ type Fitness struct {
 	wvalues []float32
 }
 
-func NewFiness(weights []float32) (*Fitness, error) {
+func NewFitness(weights []float32) (*Fitness, error) {
 	values := make([]float32, len(weights))
 	return &Fitness{
 		weights: weights,
@@ -528,11 +537,11 @@ func (f *Fitness) Dominate(other *Fitness) bool {
 	return notEqual
 }
 
-func (f Fitness) Valid() bool {
+func (f *Fitness) Valid() bool {
 	return len(f.wvalues) > 0
 }
 
-func (f Fitness) LessThan(other Fitness) bool {
+func (f *Fitness) LessThan(other *Fitness) bool {
 	iterLimit := slices.Min([]int{len(f.wvalues), len(other.wvalues)})
 	for i := 0; i < iterLimit; i++ {
 		if f.wvalues[i] >= other.wvalues[i] {
@@ -546,7 +555,7 @@ func (f Fitness) LessThan(other Fitness) bool {
 	return true
 }
 
-func (f Fitness) LessOrEqual(other Fitness) bool {
+func (f *Fitness) LessOrEqual(other *Fitness) bool {
 	iterLimit := slices.Min([]int{len(f.wvalues), len(other.wvalues)})
 	for i := 0; i < iterLimit; i++ {
 		if f.wvalues[i] > other.wvalues[i] {
@@ -560,15 +569,15 @@ func (f Fitness) LessOrEqual(other Fitness) bool {
 	return true
 }
 
-func (f Fitness) GreaterOrEqual(other Fitness) bool {
+func (f *Fitness) GreaterOrEqual(other *Fitness) bool {
 	return !f.LessThan(other)
 }
 
-func (f Fitness) GreaterThan(other Fitness) bool {
+func (f *Fitness) GreaterThan(other *Fitness) bool {
 	return !f.LessOrEqual(other)
 }
 
-func (f Fitness) Equals(other Fitness) bool {
+func (f *Fitness) Equals(other *Fitness) bool {
 	if len(f.wvalues) != len(other.wvalues) {
 		return false
 	}
@@ -578,6 +587,15 @@ func (f Fitness) Equals(other Fitness) bool {
 		}
 	}
 	return true
+}
+
+func FitnessMaxFunc(a, b Individual) int {
+	if a.Fitness().LessThan(b.Fitness()) {
+		return -1
+	} else if a.Fitness().Equals(b.Fitness()) {
+		return 0
+	}
+	return 1
 }
 
 // TODO constrained fitness

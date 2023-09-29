@@ -162,7 +162,9 @@ func TestCXOnePointestCXOnePoint(t *testing.T) {
 	assert.NotPanics(t, func() { tree2.Compile() })
 
 	r := rand.New(rand.NewSource(715))
-	tree1, tree2 = CXOnePoint(tree1, tree2, r, 0) // node at index 3 in tree1 will be replaced with node index 4:7 in tree2
+	t1, t2 := CXOnePoint(*tree1, *tree2, r, 0) // node at index 3 in tree1 will be replaced with node index 4:7 in tree2
+	tree1.ReplaceNodes(t1.Nodes())
+	tree2.ReplaceNodes(t2.Nodes())
 	assert.Equal(t, []Node{prim1, prim1, prim1, prim1, term1, term2, term2, prim2, term2, term1, prim2, term2, prim1, term1, term2}, tree1.stack)
 	assert.Equal(t, []Node{prim2, prim2, term2, term1, term1}, tree2.stack)
 	assert.NotPanics(t, func() { tree1.Compile() })
@@ -175,7 +177,9 @@ func TestStaticCrossOverLimiter(t *testing.T) {
 	tree1 := GenerateTree(ps, 3, 4, GenFull, ps.RetType, r)
 	tree2 := GenerateTree(ps, 3, 4, GenFull, ps.RetType, r)
 	for i := 0; i < 10; i++ {
-		tree1, tree2 = StaticCrossOverLimiter(CXOnePoint, 17)(tree1, tree2, r, 0)
+		t1, t2 := StaticCrossOverLimiter(CXOnePoint, 17)(*tree1, *tree2, r, 0)
+		tree1.ReplaceNodes(t1.Nodes())
+		tree2.ReplaceNodes(t2.Nodes())
 		assert.Less(t, len(tree1.Nodes()), 18)
 		assert.Less(t, len(tree2.Nodes()), 18)
 	}
