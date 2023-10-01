@@ -7,7 +7,8 @@ import (
 	"reflect"
 )
 
-func VarAnd(offs []Individual, ps *PrimitiveSet, cxpb, mutpb float32, r *rand.Rand) []Individual {
+// TODO make mutator and CX function a parameter
+func VarAnd(offs []Individual, ps *PrimitiveSet, cxpb, mutpb float32, r *rand.Rand) {
 	for i := 1; i < len(offs); i += 2 {
 		if rand.Float32() < cxpb {
 			tree1, tree2 := CXOnePoint(*offs[i-1].Tree(), *offs[i].Tree(), r, 0)
@@ -28,14 +29,21 @@ func VarAnd(offs []Individual, ps *PrimitiveSet, cxpb, mutpb float32, r *rand.Ra
 			offs[i].Fitness().DelValues()
 		}
 	}
-	return offs
 }
 
-func EaSimple(inds []Individual, ps *PrimitiveSet, evalFunction func(Individual), r *rand.Rand) {
-	for gen := 0; gen < 40; gen++ {
+type AlgorithmSettings struct {
+	NumGen               int
+	TournamentSize       int
+	SelectionSize        int
+	MutationProbability  float32
+	CrossoverProbability float32
+}
+
+func EaSimple(inds []Individual, ps *PrimitiveSet, evalFunction func(Individual), setting AlgorithmSettings, r *rand.Rand) []Individual {
+	for gen := 0; gen < setting.NumGen; gen++ {
 		fmt.Printf("------------------------------------------------------------------- (%d) %d\n", gen+1, len(inds))
-		offsprings := SelTournament(inds, len(inds), 7, r)
-		offsprings = VarAnd(offsprings, ps, 0.5, 0.2, r)
+		offsprings := SelTournament(inds, setting.SelectionSize, setting.TournamentSize, r)
+		VarAnd(offsprings, ps, setting.CrossoverProbability, setting.MutationProbability, r)
 		for i := range offsprings {
 			if !offsprings[i].Fitness().Valid() {
 				evalFunction(offsprings[i])
@@ -48,4 +56,5 @@ func EaSimple(inds []Individual, ps *PrimitiveSet, evalFunction func(Individual)
 
 	best := slices.MaxFunc(inds, FitnessMaxFunc)
 	fmt.Printf("Final: %s %s", best.Fitness().String(), best.Tree().String())
+	return inds
 }

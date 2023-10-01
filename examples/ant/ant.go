@@ -78,6 +78,18 @@ func (a *AntIndividual) Tree() *gp.PrimitiveTree {
 	return a.tree
 }
 
+func (a *AntIndividual) Copy() gp.Individual {
+	fit, err := gp.NewFitness(a.Fitness().GetWeights())
+	fit.SetValues(a.Fitness().GetValues())
+	if err != nil {
+		panic(err)
+	}
+	return &AntIndividual{
+		tree:    gp.NewPrimitiveTree(a.Tree().Nodes()),
+		fitness: fit,
+	}
+}
+
 var _ gp.Individual = new(AntIndividual)
 
 type Matrix struct {
@@ -303,7 +315,15 @@ func Main() {
 		}
 		inds = append(inds, &ind)
 	}
+
+	settings := gp.AlgorithmSettings{
+		NumGen:               40,
+		MutationProbability:  0.2,
+		CrossoverProbability: 0.5,
+		SelectionSize:        len(inds),
+		TournamentSize:       7,
+	}
 	gp.EaSimple(inds, ps, func(ind gp.Individual) {
 		eval(ant, ind)
-	}, r)
+	}, settings, r)
 }

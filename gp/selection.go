@@ -12,7 +12,7 @@ func SelRandom(individuals []Individual, k int, r *rand.Rand) []Individual {
 		if i >= k {
 			break
 		}
-		chosen[i] = individuals[randIndex]
+		chosen[i] = individuals[randIndex].Copy()
 	}
 	return chosen
 }
@@ -25,7 +25,7 @@ func SelTournament(individuals []Individual, k int, tournsize int, r *rand.Rand)
 	for i := 0; i < k; i++ {
 		aspirants := SelRandom(individuals, tournsize, r)
 		sel := slices.MaxFunc(aspirants, FitnessMaxFunc)
-		chosen[i] = sel
+		chosen[i] = sel.Copy()
 	}
 	return chosen
 }

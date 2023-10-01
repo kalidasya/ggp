@@ -19,6 +19,7 @@ type PrimitiveArgs interface {
 type Individual interface {
 	Fitness() *Fitness
 	Tree() *PrimitiveTree
+	Copy() Individual
 }
 
 type PrimitiveFunc func(...PrimitiveArgs) PrimitiveArgs
@@ -169,7 +170,9 @@ func (t *Terminal) Name() string {
 func (t *Terminal) Eval(argValues []PrimitiveArgs) (interface{}, error) {
 	if t.argument {
 		if len(argValues) != 1 {
-			return nil, errors.New("argument terminal can only have one return value")
+			return nil, errors.New(
+				fmt.Sprintf("argument terminal %s can only have one return value not %v", t.name, argValues),
+			)
 		}
 		switch t.value.(type) {
 		case func():
@@ -225,14 +228,13 @@ func NewTerminal(name string, retType reflect.Kind, value interface{}) *Terminal
 	}
 }
 
-func NewArgumentTerminal(name string, retType reflect.Kind, value interface{}) *Terminal {
-	if match, _ := regexp.MatchString("__ARG[0-9]+__", name); !match {
+func NewArgumentTerminal(name string, retType reflect.Kind) *Terminal {
+	if match, _ := regexp.MatchString("__ARG__[0-9]+", name); !match {
 		panic("invalid argument name, it has to match __ARG[0-9]+__")
 	}
 	return &Terminal{
 		name:     name,
 		retType:  retType,
-		value:    value,
 		argument: true,
 	}
 }
@@ -346,11 +348,7 @@ func NewPrimitiveSet(inTypes []reflect.Kind, retType reflect.Kind) *PrimitiveSet
 
 	for i, r := range inTypes {
 		argName := fmt.Sprintf("__ARG__%d", i)
-		inTerminal := &Terminal{
-			name:     argName,
-			retType:  r,
-			argument: true,
-		}
+		inTerminal := NewArgumentTerminal(argName, r)
 		ps.AddTerminal(inTerminal)
 	}
 	return ps
@@ -485,10 +483,9 @@ type Fitness struct {
 }
 
 func NewFitness(weights []float32) (*Fitness, error) {
-	values := make([]float32, len(weights))
 	return &Fitness{
 		weights: weights,
-		wvalues: values,
+		wvalues: []float32{},
 	}, nil
 }
 
@@ -496,15 +493,20 @@ func (f *Fitness) String() string {
 	return fmt.Sprintf("%.2f", f.wvalues)
 }
 
-func (f *Fitness) GetValues() ([]float32, error) {
-	if len(f.weights) != len(f.wvalues) {
-		return []float32{}, errors.New("values and weights must have the same size")
-	}
+func (f *Fitness) GetValues() []float32 {
 	ret := []float32{}
 	for i := range f.wvalues {
 		ret = append(ret, float32(f.wvalues[i])/float32(f.weights[i]))
 	}
-	return ret, nil
+	return ret
+}
+
+func (f *Fitness) GetWValues() []float32 {
+	return f.wvalues
+}
+
+func (f *Fitness) GetWeights() []float32 {
+	return f.weights
 }
 
 func (f *Fitness) SetValues(values []float32) error {
@@ -512,6 +514,7 @@ func (f *Fitness) SetValues(values []float32) error {
 		return errors.New("values and weights must have the same size")
 	}
 	// fmt.Printf("Setting %v for fitness: %d\n", values, &f)
+	f.DelValues()
 	for i := range values {
 		f.wvalues = append(f.wvalues, values[i]*f.weights[i])
 	}

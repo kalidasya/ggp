@@ -197,3 +197,5 @@ func TestStaticMutatorLimiter(t *testing.T) {
 		assert.Less(t, len(tree.Nodes()), 18)
 	}
 }
+
+// TODO fitness tests
