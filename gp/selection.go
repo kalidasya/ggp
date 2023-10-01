@@ -17,6 +17,7 @@ func SelRandom(individuals []Individual, k int, r *rand.Rand) []Individual {
 	return chosen
 }
 
+// TODO FitnessMaxFunc should be a parameter
 func SelTournament(individuals []Individual, k int, tournsize int, r *rand.Rand) []Individual {
 	if k > len(individuals) {
 		k = len(individuals)

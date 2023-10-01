@@ -278,7 +278,7 @@ func ParseMatrix(input string) (Matrix, error) {
 func eval(ant *Ant, ind gp.Individual) {
 	ant.Reset()
 	routine := ind.Tree().Compile().(func(...gp.PrimitiveArgs) gp.PrimitiveArgs)
-	// repeate it until it runs out of moves
+	// repeat it until it runs out of moves
 	for ant.moves < ant.maxMoves {
 		routine()
 	}
@@ -304,7 +304,7 @@ func Main() {
 	ps.AddTerminal(gp.NewTerminal("turn_left", reflect.Func, ant.TurnLeft))
 	ps.AddTerminal(gp.NewTerminal("turn_right", reflect.Func, ant.TurnRight))
 
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 300; i++ {
 		fit, err := gp.NewFitness([]float32{1})
 		if err != nil {
 			panic(err)
@@ -322,6 +322,10 @@ func Main() {
 		CrossoverProbability: 0.5,
 		SelectionSize:        len(inds),
 		TournamentSize:       7,
+		CrossOverFunc:        gp.StaticCrossOverLimiter(gp.CXOnePoint, 17),
+		MutatorFunc: gp.StaticMutatorLimiter(gp.NewUniformMutator(ps, func(ps *gp.PrimitiveSet, type_ reflect.Kind) []gp.Node {
+			return gp.GenerateTree(ps, 0, 2, gp.GenGrow, type_, r).Nodes()
+		}, r).Mutate, 17),
 	}
 	gp.EaSimple(inds, ps, func(ind gp.Individual) {
 		eval(ant, ind)

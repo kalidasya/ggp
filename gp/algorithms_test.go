@@ -3,6 +3,7 @@ package gp
 import (
 	"github.com/stretchr/testify/assert"
 	"math/rand"
+	"reflect"
 	"testing"
 )
 
@@ -19,12 +20,22 @@ func generateInds(amount int, initialFitness, initialWeight float32, ps *Primiti
 	return inds
 }
 
+func getMutator(ps *PrimitiveSet, r *rand.Rand) Mutator {
+	return StaticMutatorLimiter(NewUniformMutator(ps, func(ps *PrimitiveSet, type_ reflect.Kind) []Node {
+		return GenerateTree(ps, 0, 2, GenGrow, type_, r).Nodes()
+	}, r).Mutate, 17)
+}
+
+func getCrossOver() CrossOver {
+	return StaticCrossOverLimiter(CXOnePoint, 17)
+}
+
 func TestVarAndNoChange(t *testing.T) {
 	r := rand.New(rand.NewSource(14))
 	ps := getPrimitiveSet()
 
 	inds := generateInds(10, 1, 2, ps, r)
-	VarAnd(inds, ps, 0, 0, r)
+	VarAnd(inds, ps, getCrossOver(), getMutator(ps, r), 0, 0, r)
 
 	for i := range inds {
 		assert.True(t, inds[i].Fitness().Valid())
@@ -36,7 +47,7 @@ func TestVarAndMutationOnly(t *testing.T) {
 	ps := getPrimitiveSet()
 
 	inds := generateInds(10, 1, 2, ps, r)
-	VarAnd(inds, ps, 0, 1, r)
+	VarAnd(inds, ps, getCrossOver(), getMutator(ps, r), 0, 1, r)
 
 	for i := range inds {
 		assert.False(t, inds[i].Fitness().Valid())
@@ -56,7 +67,7 @@ func TestVarAndCXOnly(t *testing.T) {
 	ps := getPrimitiveSet()
 
 	inds := generateInds(10, 1, 2, ps, r)
-	VarAnd(inds, ps, 1, 0, r)
+	VarAnd(inds, ps, getCrossOver(), getMutator(ps, r), 1, 0, r)
 
 	for i := range inds {
 		assert.False(t, inds[i].Fitness().Valid())
@@ -76,7 +87,7 @@ func TestVarAndCXAndMut(t *testing.T) {
 	ps := getPrimitiveSet()
 
 	inds := generateInds(10, 1, 2, ps, r)
-	VarAnd(inds, ps, 1, 1, r)
+	VarAnd(inds, ps, getCrossOver(), getMutator(ps, r), 1, 1, r)
 
 	for i := range inds {
 		assert.False(t, inds[i].Fitness().Valid())
@@ -101,11 +112,13 @@ func TestEaSimple(t *testing.T) {
 		ind.Fitness().SetValues([]float32{float32(len(ind.Tree().Nodes())) / 2.0})
 	}
 	setting := AlgorithmSettings{
-		NumGen:               5,
-		MutationProbability:  1,
-		CrossoverProbability: 1,
-		TournamentSize:       6,
+		NumGen:               10,
+		MutationProbability:  0.5,
+		CrossoverProbability: 0.5,
+		TournamentSize:       4,
 		SelectionSize:        len(inds),
+		CrossOverFunc:        getCrossOver(),
+		MutatorFunc:          getMutator(ps, r),
 	}
 	inds = EaSimple(inds, ps, evalFunc, setting, r)
 
