@@ -41,15 +41,19 @@ func EaSimple(inds []Individual, ps *PrimitiveSet, evalFunction func(Individual)
 	for gen := 0; gen < setting.NumGen; gen++ {
 		fmt.Printf("------------------------------------------------------------------- (%d) %d\n", gen+1, len(inds))
 		offsprings := SelTournament(inds, setting.SelectionSize, setting.TournamentSize, r)
+
 		// TODO pass on settings?
 		VarAnd(offsprings, ps, setting.CrossOverFunc, setting.MutatorFunc, setting.CrossoverProbability, setting.MutationProbability, r)
+
+		evaled := 0
 		for i := range offsprings {
 			if !offsprings[i].Fitness().Valid() {
+				evaled++
 				evalFunction(offsprings[i])
 			}
 		}
 		best := slices.MaxFunc(inds, FitnessMaxFunc)
-		fmt.Printf("Best in gen: %s\n", best.Fitness().String())
+		fmt.Printf("Best in gen: %s total evaled: %d\n", best.Fitness().String(), evaled)
 		inds = offsprings
 	}
 

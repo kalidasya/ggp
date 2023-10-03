@@ -101,7 +101,6 @@ type Matrix struct {
 }
 
 func (m *Matrix) Get(r int, c int) fieldValue {
-	// fmt.Printf("Getting %d:%d from matrix %dx%d\n", r, c, m.Rows, m.Cols)
 	return m.data[r][c]
 }
 
@@ -126,8 +125,6 @@ func (m *Matrix) String() string {
 	}
 	return ret.String()
 }
-
-// type Move func() interface{} // we need return values
 
 type Ant struct {
 	maxMoves       int
@@ -297,9 +294,9 @@ func Main() {
 	inds := []gp.Individual{}
 
 	ps := gp.NewPrimitiveSet([]reflect.Kind{}, reflect.Func)
-	ps.AddPrimitive(gp.NewPrimitive("if_food_ahead", ant.IfFoodAhead, []reflect.Kind{reflect.Func, reflect.Func}, reflect.Func))
-	ps.AddPrimitive(gp.NewPrimitive("prog2", ProgN, []reflect.Kind{reflect.Func, reflect.Func}, reflect.Func))
 	ps.AddPrimitive(gp.NewPrimitive("prog3", ProgN, []reflect.Kind{reflect.Func, reflect.Func, reflect.Func}, reflect.Func))
+	ps.AddPrimitive(gp.NewPrimitive("prog2", ProgN, []reflect.Kind{reflect.Func, reflect.Func}, reflect.Func))
+	ps.AddPrimitive(gp.NewPrimitive("if_food_ahead", ant.IfFoodAhead, []reflect.Kind{reflect.Func, reflect.Func}, reflect.Func))
 	ps.AddTerminal(gp.NewTerminal("move_forward", reflect.Func, ant.MoveForward))
 	ps.AddTerminal(gp.NewTerminal("turn_left", reflect.Func, ant.TurnLeft))
 	ps.AddTerminal(gp.NewTerminal("turn_right", reflect.Func, ant.TurnRight))
@@ -318,16 +315,16 @@ func Main() {
 
 	settings := gp.AlgorithmSettings{
 		NumGen:               40,
-		MutationProbability:  0.2,
-		CrossoverProbability: 0.5,
+		MutationProbability:  0.5,
+		CrossoverProbability: 0.2,
 		SelectionSize:        len(inds),
 		TournamentSize:       7,
-		CrossOverFunc:        gp.StaticCrossOverLimiter(gp.CXOnePoint, 17),
+		CrossOverFunc:        gp.StaticCrossOverLimiter(gp.CXOnePoint, 9999),
 		MutatorFunc: gp.StaticMutatorLimiter(gp.NewUniformMutator(ps, func(ps *gp.PrimitiveSet, type_ reflect.Kind) []gp.Node {
-			return gp.GenerateTree(ps, 0, 2, gp.GenGrow, type_, r).Nodes()
-		}, r).Mutate, 17),
+			return gp.GenerateTree(ps, 1, 3, gp.GenGrow, type_, r).Nodes()
+		}, r).Mutate, 9999),
 	}
-	gp.EaSimple(inds, ps, func(ind gp.Individual) {
+	_ = gp.EaSimple(inds, ps, func(ind gp.Individual) {
 		eval(ant, ind)
 	}, settings, r)
 }

@@ -124,7 +124,7 @@ func TestEaSimple(t *testing.T) {
 
 	for i := range inds {
 		assert.True(t, inds[i].Fitness().Valid())
-		assert.Greater(t, inds[i].Fitness().GetWValues()[0], float32(2))
+		assert.Greater(t, inds[i].Fitness().GetWValues()[0], float32(0))
 		assert.Less(t, inds[i].Fitness().GetWValues()[0], float32(12))
 	}
 

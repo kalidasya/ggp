@@ -48,8 +48,6 @@ type PrimitiveTree struct {
 	stack []Node // either primitive or terminal
 }
 
-// somehow the last node is not a terminal, something is wrong with the tree growing
-
 func (pt *PrimitiveTree) String() string {
 	var stack []nodeString
 	for _, node := range pt.stack {
@@ -127,7 +125,6 @@ func (pt *PrimitiveTree) Height() int {
 func (pt *PrimitiveTree) SearchSubtree(begin int) (int, int) {
 	end := begin + 1
 	total := pt.stack[begin].Arity()
-	// fmt.Printf("begin node %s arity is %d in index %d\n", pt.stack[begin].Name(), total, begin)
 	for total > 0 {
 		total += pt.stack[end].Arity() - 1
 		end++
@@ -336,7 +333,6 @@ func (ps *PrimitiveSet) TerminalRatio() float32 {
 	return float32(len(ps.Terminals)) / float32(len(ps.Terminals)+len(ps.Primitives))
 }
 
-// TODO input types are ignored, no symbolic terminal
 func NewPrimitiveSet(inTypes []reflect.Kind, retType reflect.Kind) *PrimitiveSet {
 	ps := &PrimitiveSet{
 		Primitives: make(map[reflect.Kind][]*Primitive),
@@ -366,7 +362,6 @@ func GenerateTree(ps *PrimitiveSet, min int, max int, condition GenCondition, ty
 		var item stackItem
 		stack, item = Pop(stack)
 		depth, realType := item.i, item.t
-		// realType := item.t
 		if condition(height, depth, min, max, ps) {
 			if len(ps.Terminals[realType]) <= 0 {
 				panic(fmt.Sprintf("No terminal with type: %d available", realType))
@@ -374,14 +369,12 @@ func GenerateTree(ps *PrimitiveSet, min int, max int, condition GenCondition, ty
 			term := ps.Terminals[realType][r.Intn(len(ps.Terminals[realType]))]
 			expr = append(expr, term)
 		} else {
-			// fmt.Printf("prim length %d for %d from %+v\n", len(ps.Primitives[realType]), realType, ps.Primitives)
 			prim := ps.Primitives[realType][r.Intn(len(ps.Primitives[realType]))]
 			if prim == nil {
 				panic("No primitive with type available")
 			}
 			expr = append(expr, prim)
 			for i := len(prim.argTypes) - 1; i >= 0; i-- {
-				// fmt.Printf("Adding %d of %s\n", prim.argTypes[i], prim.name)
 				stack = append(stack, stackItem{i: depth + 1, t: prim.argTypes[i]})
 			}
 		}
@@ -390,8 +383,6 @@ func GenerateTree(ps *PrimitiveSet, min int, max int, condition GenCondition, ty
 }
 
 type CrossOver func(PrimitiveTree, PrimitiveTree, *rand.Rand, int) (PrimitiveTree, PrimitiveTree)
-
-// type CrossOverLimiter func(CrossOver, any) CrossOver
 
 func StaticCrossOverLimiter(crossover CrossOver, limit int) CrossOver {
 	return func(ind1 PrimitiveTree, ind2 PrimitiveTree, r *rand.Rand, bias int) (PrimitiveTree, PrimitiveTree) {
@@ -420,6 +411,7 @@ func CXOnePoint(ind1 PrimitiveTree, ind2 PrimitiveTree, r *rand.Rand, _ int) (Pr
 	for i, n := range ind2.stack[1:] {
 		types2[n.Ret()] = append(types2[n.Ret()], i+1)
 	}
+	// fmt.Printf("t1: %+v, t2: %+v\n", types1, types1)
 
 	commonTypes := Intersect(maps.Keys(types1), maps.Keys(types2))
 
@@ -435,10 +427,10 @@ func CXOnePoint(ind1 PrimitiveTree, ind2 PrimitiveTree, r *rand.Rand, _ int) (Pr
 		child2Stack := ReplaceInRange(ind2.stack, slice2Begin, slice2End, ind1.stack[slice1Begin:slice1End]...)
 		return *NewPrimitiveTree(child1Stack), *NewPrimitiveTree(child2Stack)
 	}
+	fmt.Println("No common types")
 	return ind1, ind2
 }
 
-// type Mutator func (*PrimitiveTree) *PrimitiveTree
 type Mutator func(*PrimitiveTree) *PrimitiveTree
 
 type MutatorLimiter func(Mutator) Mutator
