@@ -20,8 +20,8 @@ func SelTournament(individuals []Individual, k, tournsize int, r *rand.Rand) []I
 	}
 	chosen := make([]Individual, k)
 	for i := 0; i < k; i++ {
+    // todo stats about what kind of individuals we chose here
 		chosen[i] = slices.MaxFunc(SelRandom(individuals, tournsize, r), FitnessMaxFunc)
-		// TODO see why we prefer one primitive here out of the others
 	}
 	return chosen
 }

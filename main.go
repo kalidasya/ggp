@@ -1,11 +1,8 @@
 package main
 
 import (
-	"fmt"
 	// "go/types"
 	"main/examples/ant"
-	"main/gp"
-	"reflect"
 )
 
 // import (
@@ -16,33 +13,7 @@ import (
 // 	"time"
 // )
 
-type A func(...gp.PrimitiveArgs) func(...gp.PrimitiveArgs)
-type B func(...gp.PrimitiveArgs) gp.PrimitiveArgs
-type C func(...gp.PrimitiveArgs)
-type D func()
-
-func AF(args ...gp.PrimitiveArgs) func(...gp.PrimitiveArgs) {
-	return nil
-}
-
-func BF(args ...gp.PrimitiveArgs) gp.PrimitiveArgs {
-	return nil
-}
-
-func CF(args ...gp.PrimitiveArgs) {
-}
-
-func DF() {
-}
-
 func main() {
-	fmt.Println(reflect.TypeOf(AF).ConvertibleTo(reflect.TypeOf((A)(nil))))
-	fmt.Println(reflect.TypeOf(AF).ConvertibleTo(reflect.TypeOf((B)(nil))))
-	fmt.Println(reflect.TypeOf(BF).ConvertibleTo(reflect.TypeOf((B)(nil))))
-	fmt.Println(reflect.TypeOf(CF).ConvertibleTo(reflect.TypeOf((B)(nil))))
-	fmt.Println(reflect.TypeOf(CF).ConvertibleTo(reflect.TypeOf((C)(nil))))
-	fmt.Println(reflect.TypeOf(DF).ConvertibleTo(reflect.TypeOf((C)(nil))))
-	fmt.Println(reflect.TypeOf(DF).ConvertibleTo(reflect.TypeOf((D)(nil))))
 	ant.Main()
 }
 

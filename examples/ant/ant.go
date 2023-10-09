@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"golang.org/x/exp/constraints"
+	"golang.org/x/exp/slices"
 )
 
 type direction int
@@ -126,6 +127,23 @@ func (m *Matrix) String() string {
 	return ret.String()
 }
 
+func (m *Matrix) Copy() Matrix {
+	newData := make([][]fieldValue, len(m.data))
+	copy(newData, m.data)
+	for i := range m.data {
+		newData[i] = make([]fieldValue, len(m.data[i]))
+		copy(newData[i], m.data[i])
+	}
+	return Matrix{
+		Rows:     m.Rows,
+		Cols:     m.Cols,
+		StartRow: m.StartRow,
+		StartCol: m.StartCol,
+		data:     newData,
+	}
+
+}
+
 type Ant struct {
 	maxMoves       int
 	moves          int
@@ -146,7 +164,7 @@ func NewAnt(maxMoves int, matrix Matrix) *Ant {
 		matrix:         matrix,
 		row:            matrix.StartRow,
 		col:            matrix.StartCol,
-		originalMatrix: matrix,
+		originalMatrix: matrix.Copy(),
 	}
 }
 
@@ -156,7 +174,7 @@ func (a *Ant) Reset() {
 	a.dir = East
 	a.moves = 0
 	a.eaten = 0
-	a.matrix = a.originalMatrix
+	a.matrix = a.originalMatrix.Copy()
 }
 
 func (a *Ant) Position() (int, int, direction) {
@@ -170,14 +188,11 @@ func (a *Ant) senseFood() bool {
 }
 
 func (a *Ant) IfFoodAhead(args ...gp.PrimitiveArgs) gp.PrimitiveArgs {
-	if a.senseFood() {
-		return func(subArgs ...gp.PrimitiveArgs) gp.PrimitiveArgs {
+	return func(subArgs ...gp.PrimitiveArgs) gp.PrimitiveArgs {
+		if a.senseFood() {
 			return call(args[0], subArgs...)
 		}
-	} else {
-		return func(subArgs ...gp.PrimitiveArgs) gp.PrimitiveArgs {
-			return call(args[1], subArgs...)
-		}
+		return call(args[1], subArgs...)
 	}
 }
 
@@ -275,7 +290,6 @@ func ParseMatrix(input string) (Matrix, error) {
 func eval(ant *Ant, ind gp.Individual) {
 	ant.Reset()
 	routine := ind.Tree().Compile().(func(...gp.PrimitiveArgs) gp.PrimitiveArgs)
-	// repeat it until it runs out of moves
 	for ant.moves < ant.maxMoves {
 		routine()
 	}
@@ -314,17 +328,22 @@ func Main() {
 	}
 
 	settings := gp.AlgorithmSettings{
-		NumGen:               40,
+		NumGen:               80,
 		MutationProbability:  0.5,
 		CrossoverProbability: 0.2,
 		SelectionSize:        len(inds),
 		TournamentSize:       7,
-		CrossOverFunc:        gp.StaticCrossOverLimiter(gp.CXOnePoint, 9999),
-		MutatorFunc: gp.StaticMutatorLimiter(gp.NewUniformMutator(ps, func(ps *gp.PrimitiveSet, type_ reflect.Kind) []gp.Node {
-			return gp.GenerateTree(ps, 1, 3, gp.GenGrow, type_, r).Nodes()
-		}, r).Mutate, 9999),
+		CrossOverFunc:        gp.CXOnePoint,
+		MutatorFunc: gp.NewUniformMutator(ps, func(ps *gp.PrimitiveSet, type_ reflect.Kind) []gp.Node {
+			return gp.GenerateTree(ps, 1, 2, gp.GenGrow, type_, r).Nodes()
+		}, r).Mutate,
 	}
-	_ = gp.EaSimple(inds, ps, func(ind gp.Individual) {
+	inds = gp.EaSimple(inds, ps, func(ind gp.Individual) {
 		eval(ant, ind)
 	}, settings, r)
+	best := slices.MaxFunc(inds, gp.FitnessMaxFunc)
+	eval(ant, best)
+	fmt.Printf("best algo: \n%s\n", best.Tree().String())
+	fmt.Printf("best matrix: \n%s\n", ant.matrix.String())
+
 }

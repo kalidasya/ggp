@@ -2,8 +2,9 @@ package gp
 
 import (
 	"fmt"
-	"golang.org/x/exp/slices"
 	"math/rand"
+
+	"golang.org/x/exp/slices"
 )
 
 // TODO make mutator and CX function a parameter
@@ -45,19 +46,14 @@ func EaSimple(inds []Individual, ps *PrimitiveSet, evalFunction func(Individual)
 		// TODO pass on settings?
 		VarAnd(offsprings, ps, setting.CrossOverFunc, setting.MutatorFunc, setting.CrossoverProbability, setting.MutationProbability, r)
 
-		evaled := 0
 		for i := range offsprings {
 			if !offsprings[i].Fitness().Valid() {
-				evaled++
 				evalFunction(offsprings[i])
 			}
 		}
-		best := slices.MaxFunc(inds, FitnessMaxFunc)
-		fmt.Printf("Best in gen: %s total evaled: %d\n", best.Fitness().String(), evaled)
+		best := slices.MaxFunc(offsprings, FitnessMaxFunc)
+		fmt.Printf("Best in gen: %s\n", best.Fitness().String())
 		inds = offsprings
 	}
-
-	best := slices.MaxFunc(inds, FitnessMaxFunc)
-	fmt.Printf("Final: %s %s\n", best.Fitness().String(), best.Tree().String())
 	return inds
 }
