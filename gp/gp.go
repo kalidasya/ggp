@@ -7,11 +7,22 @@ import (
 	"golang.org/x/exp/slices"
 	"math/rand"
 	"reflect"
+	"regexp"
 	"strings"
 	"time"
 )
 
-type PrimitiveFunc func(...interface{}) interface{}
+type PrimitiveArgs interface {
+	interface{} | func(...interface{}) interface{}
+}
+
+type Individual interface {
+	Fitness() *Fitness
+	Tree() *PrimitiveTree
+	Copy() Individual
+}
+
+type PrimitiveFunc func(...PrimitiveArgs) PrimitiveArgs
 
 type GenCondition func(int, int, int, int, *PrimitiveSet) bool
 
@@ -37,8 +48,6 @@ type PrimitiveTree struct {
 	stack []Node // either primitive or terminal
 }
 
-// somehow the last node is not a terminal, something is wrong with the tree growing
-
 func (pt *PrimitiveTree) String() string {
 	var stack []nodeString
 	for _, node := range pt.stack {
@@ -63,7 +72,7 @@ func (pt *PrimitiveTree) Compile(arguments ...interface{}) interface{} {
 		argumentsMap[fmt.Sprintf("__ARG__%d", i)] = a
 	}
 	for _, node := range pt.stack {
-		stack = append(stack, nodeInterface{node, []interface{}{}})
+		stack = append(stack, nodeInterface{node, []PrimitiveArgs{}})
 		for len(stack[len(stack)-1].args) == stack[len(stack)-1].node.Arity() {
 			var n nodeInterface
 			var res interface{}
@@ -72,13 +81,13 @@ func (pt *PrimitiveTree) Compile(arguments ...interface{}) interface{} {
 			// here we pass the received values for each argument terminal
 			if ind := slices.Index(maps.Keys(argumentsMap), n.node.Name()); ind > -1 {
 				// argument terminals are always receiving a single value but the interface requires a list
-				res, err = n.node.Eval([]interface{}{argumentsMap[n.node.Name()]})
+				res, err = n.node.Eval([]PrimitiveArgs{argumentsMap[n.node.Name()]})
 			} else {
 				res, err = n.node.Eval(n.args)
 			}
 			if err != nil {
 				fmt.Println(err.Error())
-				panic("eval error")
+				panic(fmt.Sprintf("eval error for %s", n.node.Name()))
 			}
 			if len(stack) == 0 {
 				return res
@@ -87,6 +96,10 @@ func (pt *PrimitiveTree) Compile(arguments ...interface{}) interface{} {
 		}
 	}
 	return nil
+}
+
+func (pt *PrimitiveTree) ReplaceNodes(nodes []Node) {
+	pt.stack = nodes
 }
 
 func (pt *PrimitiveTree) Root() interface{} {
@@ -112,7 +125,6 @@ func (pt *PrimitiveTree) Height() int {
 func (pt *PrimitiveTree) SearchSubtree(begin int) (int, int) {
 	end := begin + 1
 	total := pt.stack[begin].Arity()
-	fmt.Printf("begin node %s arity is %d in index %d\n", pt.stack[begin].Name(), total, begin)
 	for total > 0 {
 		total += pt.stack[end].Arity() - 1
 		end++
@@ -131,7 +143,7 @@ func NewPrimitiveTree(stack []Node) *PrimitiveTree {
 type Node interface {
 	Arity() int
 	Name() string
-	Eval([]interface{}) (interface{}, error)
+	Eval([]PrimitiveArgs) (interface{}, error)
 	Str([]string) string
 	Ret() reflect.Kind
 	String() string
@@ -152,14 +164,33 @@ func (t *Terminal) Name() string {
 	return t.name
 }
 
-func (t *Terminal) Eval(argValues []interface{}) (interface{}, error) {
+func (t *Terminal) Eval(argValues []PrimitiveArgs) (interface{}, error) {
 	if t.argument {
 		if len(argValues) != 1 {
-			return nil, errors.New("argument terminal can only have one return value")
+			return nil, errors.New(
+				fmt.Sprintf("argument terminal %s can only have one return value not %v", t.name, argValues),
+			)
 		}
-		return argValues[0], nil
+		switch t.value.(type) {
+		case func():
+			if t.retType != reflect.Func {
+				return t.value.(func(interface{}) interface{})(argValues[0]), nil
+			}
+			return t.value, nil
+		default:
+			return argValues[0], nil
+		}
+
 	}
-	return t.value, nil
+	switch t.value.(type) {
+	case func():
+		if t.retType != reflect.Func {
+			return t.value.(func() interface{})(), nil
+		}
+		return t.value, nil
+	default:
+		return t.value, nil
+	}
 }
 
 func (t *Terminal) Str(_ []string) string {
@@ -169,6 +200,8 @@ func (t *Terminal) Str(_ []string) string {
 	switch t.retType {
 	case reflect.String:
 		return fmt.Sprintf(`"%s"`, t.value)
+	case reflect.Func:
+		return t.name
 	default:
 		return fmt.Sprintf("%v", t.value)
 	}
@@ -189,6 +222,17 @@ func NewTerminal(name string, retType reflect.Kind, value interface{}) *Terminal
 		name:    name,
 		retType: retType,
 		value:   value,
+	}
+}
+
+func NewArgumentTerminal(name string, retType reflect.Kind) *Terminal {
+	if match, _ := regexp.MatchString("__ARG__[0-9]+", name); !match {
+		panic("invalid argument name, it has to match __ARG[0-9]+__")
+	}
+	return &Terminal{
+		name:     name,
+		retType:  retType,
+		argument: true,
 	}
 }
 
@@ -223,7 +267,7 @@ func (p *Primitive) Equals(o Primitive) bool {
 	return true
 }
 
-func (p *Primitive) Eval(args []interface{}) (interface{}, error) {
+func (p *Primitive) Eval(args []PrimitiveArgs) (interface{}, error) {
 	if len(p.argTypes) > len(args) {
 		return nil, errors.New("not enough arguments")
 	}
@@ -231,8 +275,8 @@ func (p *Primitive) Eval(args []interface{}) (interface{}, error) {
 		return nil, errors.New("too many arguments")
 	}
 	for i, arg := range args {
-		if reflect.TypeOf(arg).Kind() != p.argTypes[i] {
-			return nil, errors.New(fmt.Sprintf("invalid type for %dth argument", i+1))
+		if reflect.TypeOf(arg).Kind() != p.argTypes[i] && p.argTypes[i] != reflect.Interface { // lets handle interface as any
+			return nil, errors.New(fmt.Sprintf("%s invalid type for %dth argument (%v) expected %d got %d", p.name, i+1, arg, p.argTypes[i], reflect.TypeOf(arg).Kind()))
 		}
 
 	}
@@ -289,7 +333,6 @@ func (ps *PrimitiveSet) TerminalRatio() float32 {
 	return float32(len(ps.Terminals)) / float32(len(ps.Terminals)+len(ps.Primitives))
 }
 
-// TODO input types are ignored, no symbolic terminal
 func NewPrimitiveSet(inTypes []reflect.Kind, retType reflect.Kind) *PrimitiveSet {
 	ps := &PrimitiveSet{
 		Primitives: make(map[reflect.Kind][]*Primitive),
@@ -301,11 +344,7 @@ func NewPrimitiveSet(inTypes []reflect.Kind, retType reflect.Kind) *PrimitiveSet
 
 	for i, r := range inTypes {
 		argName := fmt.Sprintf("__ARG__%d", i)
-		inTerminal := &Terminal{
-			name:     argName,
-			retType:  r,
-			argument: true,
-		}
+		inTerminal := NewArgumentTerminal(argName, r)
 		ps.AddTerminal(inTerminal)
 	}
 	return ps
@@ -323,12 +362,11 @@ func GenerateTree(ps *PrimitiveSet, min int, max int, condition GenCondition, ty
 		var item stackItem
 		stack, item = Pop(stack)
 		depth, realType := item.i, item.t
-		// realType := item.t
 		if condition(height, depth, min, max, ps) {
-			term := ps.Terminals[realType][r.Intn(len(ps.Terminals[realType]))]
-			if term == nil {
-				panic("No terminal with type available") // assert.Panics
+			if len(ps.Terminals[realType]) <= 0 {
+				panic(fmt.Sprintf("No terminal with type: %d available", realType))
 			}
+			term := ps.Terminals[realType][r.Intn(len(ps.Terminals[realType]))]
 			expr = append(expr, term)
 		} else {
 			prim := ps.Primitives[realType][r.Intn(len(ps.Primitives[realType]))]
@@ -344,14 +382,12 @@ func GenerateTree(ps *PrimitiveSet, min int, max int, condition GenCondition, ty
 	return NewPrimitiveTree(expr)
 }
 
-type CrossOver func(*PrimitiveTree, *PrimitiveTree, *rand.Rand, int) (*PrimitiveTree, *PrimitiveTree)
-
-// type CrossOverLimiter func(CrossOver, any) CrossOver
+type CrossOver func(PrimitiveTree, PrimitiveTree, *rand.Rand, int) (PrimitiveTree, PrimitiveTree)
 
 func StaticCrossOverLimiter(crossover CrossOver, limit int) CrossOver {
-	return func(ind1 *PrimitiveTree, ind2 *PrimitiveTree, r *rand.Rand, bias int) (*PrimitiveTree, *PrimitiveTree) {
+	return func(ind1 PrimitiveTree, ind2 PrimitiveTree, r *rand.Rand, bias int) (PrimitiveTree, PrimitiveTree) {
 		child1, child2 := crossover(ind1, ind2, r, bias)
-		parents := []*PrimitiveTree{ind1, ind2}
+		parents := []PrimitiveTree{ind1, ind2}
 		if len(child1.Nodes()) > limit {
 			child1 = parents[rand.Intn(len(parents))]
 		}
@@ -362,9 +398,9 @@ func StaticCrossOverLimiter(crossover CrossOver, limit int) CrossOver {
 	}
 }
 
-func CXOnePoint(ind1 *PrimitiveTree, ind2 *PrimitiveTree, r *rand.Rand, _ int) (*PrimitiveTree, *PrimitiveTree) {
+func CXOnePoint(ind1 PrimitiveTree, ind2 PrimitiveTree, r *rand.Rand, _ int) (PrimitiveTree, PrimitiveTree) {
 	if len(ind1.stack) < 2 || len(ind2.stack) < 2 {
-		return nil, nil
+		return ind1, ind2
 	}
 
 	types1 := make(map[reflect.Kind][]int)
@@ -375,6 +411,7 @@ func CXOnePoint(ind1 *PrimitiveTree, ind2 *PrimitiveTree, r *rand.Rand, _ int) (
 	for i, n := range ind2.stack[1:] {
 		types2[n.Ret()] = append(types2[n.Ret()], i+1)
 	}
+	// fmt.Printf("t1: %+v, t2: %+v\n", types1, types1)
 
 	commonTypes := Intersect(maps.Keys(types1), maps.Keys(types2))
 
@@ -388,12 +425,12 @@ func CXOnePoint(ind1 *PrimitiveTree, ind2 *PrimitiveTree, r *rand.Rand, _ int) (
 
 		child1Stack := ReplaceInRange(ind1.stack, slice1Begin, slice1End, ind2.stack[slice2Begin:slice2End]...)
 		child2Stack := ReplaceInRange(ind2.stack, slice2Begin, slice2End, ind1.stack[slice1Begin:slice1End]...)
-		return NewPrimitiveTree(child1Stack), NewPrimitiveTree(child2Stack)
+		return *NewPrimitiveTree(child1Stack), *NewPrimitiveTree(child2Stack)
 	}
-	return nil, nil
+	fmt.Println("No common types")
+	return ind1, ind2
 }
 
-// type Mutator func (*PrimitiveTree) *PrimitiveTree
 type Mutator func(*PrimitiveTree) *PrimitiveTree
 
 type MutatorLimiter func(Mutator) Mutator
@@ -431,3 +468,129 @@ func (m *UniformMutator) Mutate(ind *PrimitiveTree) *PrimitiveTree {
 	newNodes := m.expr(m.ps, type_)
 	return NewPrimitiveTree(ReplaceInRange(ind.stack, sliceStart, sliceEnd, newNodes...))
 }
+
+type Fitness struct {
+	weights []float32
+	wvalues []float32
+}
+
+func NewFitness(weights []float32) (*Fitness, error) {
+	return &Fitness{
+		weights: weights,
+		wvalues: []float32{},
+	}, nil
+}
+
+func (f *Fitness) String() string {
+	return fmt.Sprintf("%.2f", f.wvalues)
+}
+
+func (f *Fitness) GetValues() []float32 {
+	ret := []float32{}
+	for i := range f.wvalues {
+		ret = append(ret, float32(f.wvalues[i])/float32(f.weights[i]))
+	}
+	return ret
+}
+
+func (f *Fitness) GetWValues() []float32 {
+	return f.wvalues
+}
+
+func (f *Fitness) GetWeights() []float32 {
+	return f.weights
+}
+
+func (f *Fitness) SetValues(values []float32) error {
+	if len(f.weights) != len(values) {
+		return errors.New("values and weights must have the same size")
+	}
+	// fmt.Printf("Setting %v for fitness: %d\n", values, &f)
+	f.DelValues()
+	for i := range values {
+		f.wvalues = append(f.wvalues, values[i]*f.weights[i])
+	}
+	return nil
+}
+
+func (f *Fitness) DelValues() {
+	f.wvalues = []float32{}
+}
+
+func (f *Fitness) Dominate(other *Fitness) bool {
+	// we need to iterate till the end of the sorter list
+	iterLimit := slices.Min([]int{len(f.wvalues), len(other.wvalues)})
+
+	notEqual := false
+	for i := 0; i < iterLimit; i++ {
+		if f.wvalues[i] > other.wvalues[i] {
+			notEqual = true
+		} else if f.wvalues[i] < other.wvalues[i] {
+			return false
+		}
+	}
+	return notEqual
+}
+
+func (f *Fitness) Valid() bool {
+	return len(f.wvalues) > 0
+}
+
+func (f *Fitness) LessThan(other *Fitness) bool {
+	iterLimit := slices.Min([]int{len(f.wvalues), len(other.wvalues)})
+	for i := 0; i < iterLimit; i++ {
+		if f.wvalues[i] >= other.wvalues[i] {
+			return false
+		}
+	}
+	// shorter list considered less
+	if len(f.wvalues) > len(other.wvalues) {
+		return false
+	}
+	return true
+}
+
+func (f *Fitness) LessOrEqual(other *Fitness) bool {
+	iterLimit := slices.Min([]int{len(f.wvalues), len(other.wvalues)})
+	for i := 0; i < iterLimit; i++ {
+		if f.wvalues[i] > other.wvalues[i] {
+			return false
+		}
+	}
+	// shorter list considered less
+	if len(f.wvalues) > len(other.wvalues) {
+		return false
+	}
+	return true
+}
+
+func (f *Fitness) GreaterOrEqual(other *Fitness) bool {
+	return !f.LessThan(other)
+}
+
+func (f *Fitness) GreaterThan(other *Fitness) bool {
+	return !f.LessOrEqual(other)
+}
+
+func (f *Fitness) Equals(other *Fitness) bool {
+	if len(f.wvalues) != len(other.wvalues) {
+		return false
+	}
+	for i := 0; i < len(f.wvalues); i++ {
+		if f.wvalues[i] != other.wvalues[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func FitnessMaxFunc(a, b Individual) int {
+	if a.Fitness().LessThan(b.Fitness()) {
+		return -1
+	} else if a.Fitness().Equals(b.Fitness()) {
+		return 0
+	}
+	return 1
+}
+
+// TODO constrained fitness

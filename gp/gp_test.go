@@ -6,14 +6,14 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-  
+
 	"github.com/stretchr/testify/assert"
 )
 
-var func1 PrimitiveFunc = func(a ...interface{}) interface{} {
+var func1 PrimitiveFunc = func(a ...PrimitiveArgs) PrimitiveArgs {
 	return len(a[1].(string)) * a[0].(int)
 }
-var func2 PrimitiveFunc = func(a ...interface{}) interface{} {
+var func2 PrimitiveFunc = func(a ...PrimitiveArgs) PrimitiveArgs {
 	return strings.Repeat(a[0].(string), a[1].(int))
 }
 
@@ -116,24 +116,24 @@ func TestGenerateTree(t *testing.T) {
 }
 
 func TestCompileWithArguments(t *testing.T) {
-  r := rand.New(rand.NewSource(1001))
-  
-  ps := NewPrimitiveSet([]reflect.Kind{reflect.Int, reflect.String, reflect.Int}, reflect.Int)
+	r := rand.New(rand.NewSource(1001))
+
+	ps := NewPrimitiveSet([]reflect.Kind{reflect.Int, reflect.String, reflect.Int}, reflect.Int)
 	ps.AddPrimitive(prim1)
 	ps.AddPrimitive(prim2)
 
-  assert.Equal(t, 2, len(ps.Terminals[reflect.Int]))
-  assert.Equal(t, 1, len(ps.Terminals[reflect.String]))
-  tree := GenerateTree(ps, 2, 3, GenFull, ps.RetType, r)
-  assert.NotPanics(t, func() {tree.Compile(4, "aloha", 2)})
-  assert.Equal(t, 0, tree.Compile(1, "", 1))
-  // panic if not enough argument
-  assert.Panics(t, func() {tree.Compile(4, "aloha")})
-  // panic if type mismtach
-  assert.Panics(t, func() {tree.Compile(true, "aloha", 1)})
-  // no panic if extra arguments
-  assert.NotPanics(t, func() {tree.Compile(1, "aloha", 1, 12)})
-  
+	assert.Equal(t, 2, len(ps.Terminals[reflect.Int]))
+	assert.Equal(t, 1, len(ps.Terminals[reflect.String]))
+	tree := GenerateTree(ps, 2, 3, GenFull, ps.RetType, r)
+	assert.NotPanics(t, func() { tree.Compile(4, "aloha", 2) })
+	assert.Equal(t, 0, tree.Compile(1, "", 1))
+	// panic if not enough argument
+	assert.Panics(t, func() { tree.Compile(4, "aloha") })
+	// panic if type mismtach
+	assert.Panics(t, func() { tree.Compile(true, "aloha", 1) })
+	// no panic if extra arguments
+	assert.NotPanics(t, func() { tree.Compile(1, "aloha", 1, 12) })
+
 }
 
 func TestUniformMutator(t *testing.T) {
@@ -142,7 +142,7 @@ func TestUniformMutator(t *testing.T) {
 	ps := getPrimitiveSet()
 	origLen := len(tree.Nodes())
 	beforeMut := fmt.Sprintf("%s", tree)
-  uniformMutator := NewUniformMutator(ps, func(ps *PrimitiveSet, type_ reflect.Kind) []Node {
+	uniformMutator := NewUniformMutator(ps, func(ps *PrimitiveSet, type_ reflect.Kind) []Node {
 		return GenerateTree(ps, 1, 2, GenGrow, type_, r).Nodes()
 	}, r)
 	tree = uniformMutator.Mutate(tree)
@@ -162,7 +162,9 @@ func TestCXOnePointestCXOnePoint(t *testing.T) {
 	assert.NotPanics(t, func() { tree2.Compile() })
 
 	r := rand.New(rand.NewSource(715))
-	tree1, tree2 = CXOnePoint(tree1, tree2, r, 0) // node at index 3 in tree1 will be replaced with node index 4:7 in tree2
+	t1, t2 := CXOnePoint(*tree1, *tree2, r, 0) // node at index 3 in tree1 will be replaced with node index 4:7 in tree2
+	tree1.ReplaceNodes(t1.Nodes())
+	tree2.ReplaceNodes(t2.Nodes())
 	assert.Equal(t, []Node{prim1, prim1, prim1, prim1, term1, term2, term2, prim2, term2, term1, prim2, term2, prim1, term1, term2}, tree1.stack)
 	assert.Equal(t, []Node{prim2, prim2, term2, term1, term1}, tree2.stack)
 	assert.NotPanics(t, func() { tree1.Compile() })
@@ -170,26 +172,30 @@ func TestCXOnePointestCXOnePoint(t *testing.T) {
 }
 
 func TestStaticCrossOverLimiter(t *testing.T) {
-  ps := getPrimitiveSet()
-  r := rand.New(rand.NewSource(444))
-  tree1 := GenerateTree(ps, 3, 4, GenFull, ps.RetType, r)
-  tree2 := GenerateTree(ps, 3, 4, GenFull, ps.RetType, r)
-  for i := 0; i < 10; i++ {
-    tree1, tree2 = StaticCrossOverLimiter(CXOnePoint, 17)(tree1, tree2, r, 0)
-    assert.Less(t, len(tree1.Nodes()), 18)
-    assert.Less(t, len(tree2.Nodes()), 18)
-  }
+	ps := getPrimitiveSet()
+	r := rand.New(rand.NewSource(444))
+	tree1 := GenerateTree(ps, 3, 4, GenFull, ps.RetType, r)
+	tree2 := GenerateTree(ps, 3, 4, GenFull, ps.RetType, r)
+	for i := 0; i < 10; i++ {
+		t1, t2 := StaticCrossOverLimiter(CXOnePoint, 17)(*tree1, *tree2, r, 0)
+		tree1.ReplaceNodes(t1.Nodes())
+		tree2.ReplaceNodes(t2.Nodes())
+		assert.Less(t, len(tree1.Nodes()), 18)
+		assert.Less(t, len(tree2.Nodes()), 18)
+	}
 }
 
 func TestStaticMutatorLimiter(t *testing.T) {
-  ps := getPrimitiveSet()
-  r := rand.New(rand.NewSource(444))
-  tree := GenerateTree(ps, 3, 4, GenFull, ps.RetType, r)
-  uniformMutator := NewUniformMutator(ps, func(ps *PrimitiveSet, type_ reflect.Kind) []Node {
+	ps := getPrimitiveSet()
+	r := rand.New(rand.NewSource(444))
+	tree := GenerateTree(ps, 3, 4, GenFull, ps.RetType, r)
+	uniformMutator := NewUniformMutator(ps, func(ps *PrimitiveSet, type_ reflect.Kind) []Node {
 		return GenerateTree(ps, 2, 3, GenGrow, type_, r).Nodes()
 	}, r)
-  for i := 0; i < 10; i++ {
-    tree = StaticMutatorLimiter(uniformMutator.Mutate, 17)(tree)
-    assert.Less(t, len(tree.Nodes()), 18)
-  }
+	for i := 0; i < 10; i++ {
+		tree = StaticMutatorLimiter(uniformMutator.Mutate, 17)(tree)
+		assert.Less(t, len(tree.Nodes()), 18)
+	}
 }
+
+// TODO fitness tests

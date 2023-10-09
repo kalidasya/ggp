@@ -16,7 +16,7 @@ type nodeString struct {
 
 type nodeInterface struct {
 	node Node
-	args []interface{}
+	args []PrimitiveArgs
 }
 
 type stackItem struct {
@@ -49,7 +49,7 @@ func ReplaceInRange[T any](stack []T, start, end int, insert ...T) []T {
 	return stack
 }
 
-func Intersect[T constraints.Ordered](s1 []T, s2 []T) []T {
+func Intersect[T constraints.Ordered](s1, s2 []T) []T {
 	slices.Sort(s1)
 	slices.Compact(s1)
 	slices.Sort(s2)
