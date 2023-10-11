@@ -281,6 +281,11 @@ func eval(ant *Ant, ind gp.Individual) {
 }
 
 func Main() {
+	/*
+	  Best in gen: [84.00]
+	  best algo:
+	  prog3(prog3(turn_right, move_forward, turn_left), prog3(if_food_ahead(move_forward, if_food_ahead(prog3(turn_left, if_food_ahead(move_forward, move_forward), turn_right), turn_left)), if_food_ahead(turn_left, move_forward), if_food_ahead(if_food_ahead(prog2(move_forward, move_forward), turn_left), turn_right)), move_forward)
+	*/
 	matrix, err := ParseMatrix("examples/ant/matrix.txt")
 	if err != nil {
 		panic(err)
@@ -319,7 +324,7 @@ func Main() {
 		TournamentSize:       7,
 		CrossOverFunc:        gp.CXOnePoint,
 		MutatorFunc: gp.NewUniformMutator(ps, func(ps *gp.PrimitiveSet, type_ reflect.Kind) []gp.Node {
-			return gp.GenerateTree(ps, 1, 2, gp.GenGrow, type_, r).Nodes()
+			return gp.GenerateTree(ps, 0, 2, gp.GenFull, type_, r).Nodes()
 		}, r).Mutate,
 	}
 	inds = gp.EaSimple(inds, ps, func(ind gp.Individual) {
