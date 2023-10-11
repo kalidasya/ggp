@@ -236,26 +236,10 @@ func ProgN(progs ...gp.PrimitiveArgs) gp.PrimitiveArgs {
 
 }
 
-// TODO this is shite
-type FPFP func(...gp.PrimitiveArgs) func(...gp.PrimitiveArgs)
-type FPP func(...gp.PrimitiveArgs) gp.PrimitiveArgs
-type FP func(...gp.PrimitiveArgs)
-type F func()
+type FPP = func(...gp.PrimitiveArgs) gp.PrimitiveArgs
 
 func call(f gp.PrimitiveArgs, args ...gp.PrimitiveArgs) gp.PrimitiveArgs {
-	fTypeCheck := reflect.TypeOf(f).ConvertibleTo
-	if fTypeCheck(reflect.TypeOf((FPFP)(nil))) {
-		return call(f.(func(...gp.PrimitiveArgs) func(...gp.PrimitiveArgs))(args...), args...)
-	} else if fTypeCheck(reflect.TypeOf((FPP)(nil))) {
-		return f.(func(...gp.PrimitiveArgs) gp.PrimitiveArgs)(args...)
-	} else if fTypeCheck(reflect.TypeOf((FP)(nil))) {
-		f.(func(...gp.PrimitiveArgs))(args...)
-	} else if fTypeCheck(reflect.TypeOf((F)(nil))) {
-		f.(func())()
-	} else {
-		fmt.Printf("Non matching signature: %+v\n", reflect.TypeOf(f))
-	}
-	return nil
+	return f.(FPP)(args...)
 }
 
 func ParseMatrix(input string) (Matrix, error) {
@@ -328,7 +312,7 @@ func Main() {
 	}
 
 	settings := gp.AlgorithmSettings{
-		NumGen:               80,
+		NumGen:               40,
 		MutationProbability:  0.5,
 		CrossoverProbability: 0.2,
 		SelectionSize:        len(inds),
