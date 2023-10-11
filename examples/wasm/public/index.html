@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width">
+  <script src="wasm_exec.js"></script>
+	<script>
+    const go = new Go();
+    WebAssembly.instantiateStreaming(fetch("main.wasm"), go.importObject).then((result) => {
+      go.run(result.instance);
+    });
+    console.log(EASimple())
+  </script>
+</head>
+<body>
+</body>

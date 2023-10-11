@@ -1,12 +1,25 @@
-entrypoint = "main.go"
+language = "html"
+entrypoint = "examples/wasm/public/index.html"
 
-modules = ["go"]
+modules = ["go", "npm"]
+
+compile = ["sh", "-c", "GOOS=js GOARCH=wasm go build -o examples/wasm/public/main.wasm && cp -rf $(go env GOROOT)/misc/wasm/wasm_exec.js examples/wasm/public/"]
+run = "cd examples/wasm/public && npx static-here"
 
 [gitHubImport]
-requiredFiles = [".replit"]
+requiredFiles = [".replit", "replit.nix"]
 
-[deployment]
-build = ["sh", "-c", "go build main.go"]
-run = ["sh", "-c", "./main"]
-ignorePorts = false
-deploymentTarget = "gce"
+[languages]
+
+[languages.javascript]
+pattern = "**/{*.js,*.jsx,*.ts,*.tsx,*.json}"
+
+[languages.go]
+pattern = "**/*.go"
+
+[languages.html]
+pattern = "**/*.html"
+[languages.html.languageServer]
+start = "vscode-html-language-server --stdio"
+[languages.html.languageServer.initializationOptions]
+provideFormatter = true
