@@ -12,9 +12,7 @@ import (
 	"time"
 )
 
-type PrimitiveArgs interface {
-	interface{} | func(...interface{}) interface{}
-}
+type PrimitiveArgs any
 
 type Individual interface {
 	Fitness() *Fitness
