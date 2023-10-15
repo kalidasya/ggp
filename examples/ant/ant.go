@@ -292,8 +292,8 @@ func Main() {
 	}
 
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	ant := NewAnt(600, matrix)
 
+	ant := NewAnt(600, matrix)
 	inds := []gp.Individual{}
 
 	ps := gp.NewPrimitiveSet([]reflect.Kind{}, reflect.Func)

@@ -75,7 +75,7 @@ func TestSelTournament(t *testing.T) {
 		assert.Empty(t, inds[i].Fitness().GetWValues())
 	}
 
-	result := SelTournament(inds, 8, 5, r)
+	result := SelTournament(inds, 8, 5, FitnessMaxFunc, r)
 	assert.Len(t, result, 8)
 	assert.NotEqual(t, inds, result)
 

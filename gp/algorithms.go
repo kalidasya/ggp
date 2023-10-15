@@ -7,7 +7,7 @@ import (
 	"golang.org/x/exp/slices"
 )
 
-// TODO make mutator and CX function a parameter
+// TODO no need for PS
 func VarAnd(offs []Individual, ps *PrimitiveSet, cxFunc CrossOver, mutFunc Mutator, cxpb, mutpb float32, r *rand.Rand) {
 	for i := 1; i < len(offs); i += 2 {
 		if rand.Float32() < cxpb {
@@ -38,10 +38,11 @@ type AlgorithmSettings struct {
 	MutatorFunc          Mutator
 }
 
+// TODO no need for ps
 func EaSimple(inds []Individual, ps *PrimitiveSet, evalFunction func(Individual), setting AlgorithmSettings, r *rand.Rand) []Individual {
 	for gen := 0; gen < setting.NumGen; gen++ {
 		fmt.Printf("------------------------------------------------------------------- (%d) %d\n", gen+1, len(inds))
-		offsprings := SelTournament(inds, setting.SelectionSize, setting.TournamentSize, r)
+		offsprings := SelTournament(inds, setting.SelectionSize, setting.TournamentSize, FitnessMaxFunc, r)
 
 		// TODO pass on settings?
 		VarAnd(offsprings, ps, setting.CrossOverFunc, setting.MutatorFunc, setting.CrossoverProbability, setting.MutationProbability, r)

@@ -13,15 +13,14 @@ func SelRandom(individuals []Individual, k int, r *rand.Rand) []Individual {
 	return chosen
 }
 
-// TODO FitnessMaxFunc should be a parameter
-func SelTournament(individuals []Individual, k, tournsize int, r *rand.Rand) []Individual {
+func SelTournament(individuals []Individual, k, tournsize int, compareFunc IndividualCompFunc, r *rand.Rand) []Individual {
 	if k > len(individuals) {
 		k = len(individuals)
 	}
 	chosen := make([]Individual, k)
 	for i := 0; i < k; i++ {
-    // todo stats about what kind of individuals we chose here
-		chosen[i] = slices.MaxFunc(SelRandom(individuals, tournsize, r), FitnessMaxFunc)
+		// todo stats about what kind of individuals we chose here
+		chosen[i] = slices.MaxFunc(SelRandom(individuals, tournsize, r), compareFunc)
 	}
 	return chosen
 }

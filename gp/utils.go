@@ -43,7 +43,7 @@ func Pop[T any](s []T) ([]T, T) {
 }
 
 func ReplaceInRange[T any](stack []T, start, end int, insert ...T) []T {
-	stack = slices.Clone(stack) // todo create unittest
+	stack = slices.Clone(stack)
 	stack = slices.Delete(stack, start, end)
 	stack = slices.Insert(stack, start, insert...)
 	return stack

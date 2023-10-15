@@ -14,6 +14,7 @@ import (
 
 type PrimitiveArgs any
 
+// TODO maybe it should have a PrimitiveSet as well?
 type Individual interface {
 	Fitness() *Fitness
 	Tree() *PrimitiveTree
@@ -447,8 +448,9 @@ func StaticMutatorLimiter(mutator Mutator, limit int) Mutator {
 
 type UniformMutator struct {
 	expr func(*PrimitiveSet, reflect.Kind) []Node
-	ps   *PrimitiveSet
-	r    *rand.Rand
+	// TODO ps should not be here, the expr uses it, it can be passed in Mutate as well?
+	ps *PrimitiveSet
+	r  *rand.Rand
 }
 
 func NewUniformMutator(ps *PrimitiveSet, expr func(*PrimitiveSet, reflect.Kind) []Node, r *rand.Rand) *UniformMutator {
@@ -581,6 +583,8 @@ func (f *Fitness) Equals(other *Fitness) bool {
 	}
 	return true
 }
+
+type IndividualCompFunc func(a, b Individual) int
 
 func FitnessMaxFunc(a, b Individual) int {
 	if a.Fitness().LessThan(b.Fitness()) {
